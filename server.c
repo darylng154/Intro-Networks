@@ -23,8 +23,10 @@
 
 #include "networks.h"
 #include "safeUtil.h"
-#include "pdu.h"
 #include "pollLib.h"
+
+#include "pdu.h"
+#include "handleTable.h"
 
 #define MAXBUF 1400
 #define DEBUG_FLAG 1
@@ -34,6 +36,7 @@ int checkArgs(int argc, char *argv[]);
 void serverControl(int mainServerSocket);
 void addNewClient(int serverSocket, int debugFlag);
 void processClient(int clientSocket);
+void replyToClient(int clientSocket, uint8_t* dataBuffer, int sendLen);
 
 int main(int argc, char *argv[])
 {
@@ -72,15 +75,13 @@ void recvFromClient(int clientSocket)
 	{
 		printf("Message received on socket %d, length: %d Data: %s\n", clientSocket, messageLen, dataBuffer);
 		printf("(note the length is %d because of the null)\n", messageLen);
+
+		replyToClient(clientSocket, dataBuffer, messageLen);
 	}
-	
-	if(messageLen == 0)		//checks if socket is closed first
+	if(messageLen == 0 || strcmp((char*)dataBuffer, "exit") == 0)		//checks if socket is closed first
 	{
 		removeFromPollSet(clientSocket);
-	}
-	else if(strcmp((char*)dataBuffer, "exit") == 0)	// or if "exit" is typed
-	{
-		removeFromPollSet(clientSocket);
+		close(clientSocket);
 	}
 }
 
@@ -105,13 +106,18 @@ int checkArgs(int argc, char *argv[])
 
 void serverControl(int mainServerSocket)
 {
+	int readySocket = 0;
 	setupPollSet();
 	addToPollSet(mainServerSocket);
+
+	char* handle = "\0";
+	int tableLen = 2;
+    struct handleTable* table = NULL;
+    initHandleTables(&table, tableLen);
 
 	while(1)
 	{
 		//poll & block forever
-		int readySocket = 0;
 		readySocket = pollCall(-1);	
 
 		if(readySocket == mainServerSocket)
@@ -130,10 +136,27 @@ void addNewClient(int serverSocket, int debugFlag)
 	int clientSocket = 0;
 	clientSocket = tcpAccept(serverSocket, debugFlag);
 	addToPollSet(clientSocket);
-}
 
+	// *tableLen = addHandle(table, *tableLen, clientSocket, handle);
+	// printHandleTables(*table, *tableLen);
+}
 
 void processClient(int clientSocket)
 {
 	recvFromClient(clientSocket);
 }
+
+void replyToClient(int clientSocket, uint8_t* dataBuffer, int sendLen)
+{
+	// uint8_t dataBuffer[MAXBUF];
+	int sent = 0;
+
+	sent = sendPDU(clientSocket, dataBuffer, sendLen/*, flag*/);	//echo back to client
+	if(sent < 0)
+	{
+		perror("#ERROR: myClient.c sendToServer sendPDU");
+		exit(-1);
+	}
+	printf("echo: %s string len: %d (including null)\n", dataBuffer, sendLen);
+	printf("Amount of data sent is: %d\n", sent);
+} 

@@ -23,15 +23,18 @@
 
 #include "networks.h"
 #include "safeUtil.h"
+#include "pollLib.h"
+
 #include "pdu.h"
 
 #define MAXBUF 1400
 #define DEBUG_FLAG 1
 
-void sendToServer(int socketNum);
+void sendToServer(int socketNum, uint8_t* sendBuf, int sendLen);
 int readFromStdin(uint8_t * buffer);
 void checkArgs(int argc, char * argv[]);
 void clientControl(int serverSocket);
+void recvFromServer(int serverSocket);
 
 int main(int argc, char * argv[])
 {
@@ -49,13 +52,13 @@ int main(int argc, char * argv[])
 	return 0;
 }
 
-void sendToServer(int socketNum)
+void sendToServer(int socketNum, uint8_t* sendBuf, int sendLen)
 {
-	uint8_t sendBuf[MAXBUF];   //data buffer
-	int sendLen = 0;        //amount of data to send
+// 	uint8_t sendBuf[MAXBUF];   //data buffer
+// 	int sendLen = 0;        //amount of data to send
 	int sent = 0;            //actual amount of data sent/* get the data and send it   */
 	
-	sendLen = readFromStdin(sendBuf);
+	// sendLen = readFromStdin(sendBuf);
 	printf("read: %s string len: %d (including null)\n", sendBuf, sendLen);
 	
 	sent = sendPDU(socketNum, sendBuf, sendLen);
@@ -75,7 +78,7 @@ int readFromStdin(uint8_t * buffer)
 	
 	// Important you don't input more characters than you have space 
 	buffer[0] = '\0';
-	printf("Enter data: ");
+	// printf("Enter data: ");
 	while (inputLen < (MAXBUF - 1) && aChar != '\n')
 	{
 		aChar = getchar();
@@ -105,9 +108,55 @@ void checkArgs(int argc, char * argv[])
 
 void clientControl(int serverSocket)
 {
+	int readySocket = 0;
+	uint8_t dataBuffer[MAXBUF];   //data buffer
+	int messageLen = 0;        //amount of data to send
+	
+	setupPollSet();
+	addToPollSet(serverSocket);
+	addToPollSet(STDIN_FILENO);
+
 	while(1)
 	{
-		sendToServer(serverSocket);
+		//poll & block forever
+		readySocket = pollCall(-1);
+
+		if(readySocket == STDIN_FILENO)		// socket ready to send
+		{
+			messageLen = readFromStdin(dataBuffer);
+			// build pdu based on input
+			sendToServer(serverSocket, dataBuffer, messageLen);
+		}
+		else if(readySocket == serverSocket)	// socket ready to recv
+		{
+			recvFromServer(serverSocket);
+		}
 	}
-	printf("exited while loop \n");
+
+	printf("cclient exited while loop \n");
+}
+
+void recvFromServer(int serverSocket)
+{
+	uint8_t dataBuffer[MAXBUF];   	//data buffer
+	int recved = 0;        	//amount of data to send
+
+	recved = recvPDU(serverSocket, dataBuffer, MAXBUF /*, (uint8_t*)&flag*/);
+	if(recved > 0)
+	{
+		printf("Message received on socket %d, length: %d Data: %s\n", serverSocket, recved, dataBuffer);
+		printf("(note the length is %d because of the null)\n", recved);
+		// printflag("", flag);
+		printf("\n\n");
+	}
+	else if(recved < 0)
+	{
+		perror("#ERROR: myClient.c recvFromServer recvPDU < 0");
+		exit(-1);
+	}
+	if(recved == 0)		//checks if socket is closed
+	{
+		perror("ERROR#: Server closed");
+		exit(-1);
+	}
 }

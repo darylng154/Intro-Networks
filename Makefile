@@ -37,3 +37,29 @@ client13:
 	./cclient s1_third unix3.csc.calpoly.edu 6969
 
 
+server2:
+	./server 8989
+
+client21:
+	./cclient s2_first unix3.csc.calpoly.edu 8989
+
+client22:
+	./cclient s2_second unix3.csc.calpoly.edu 8989
+
+client23:
+	./cclient s2_third unix3.csc.calpoly.edu 8989
+
+
+server3:
+	./server 9898
+
+client31:
+	./cclient s3_first unix3.csc.calpoly.edu 9898
+
+client32:
+	./cclient s3_second unix3.csc.calpoly.edu 9898
+
+client33:
+	./cclient s3_third unix3.csc.calpoly.edu 9898
+
+

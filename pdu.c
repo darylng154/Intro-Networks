@@ -5,6 +5,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
+#define MAXBUF 1400
+
 #include "pdu.h"
 
 int sendPDU(int socketNumber, uint8_t * dataBuffer, int lengthOfData)
@@ -73,4 +75,9 @@ int recvPDU(int clientSocket, uint8_t * dataBuffer, int bufferSize)
     }
 
     return recved;   
+}
+
+void addChatHeader(uint8_t* dataBuffer, int* messageLen)
+{
+	
 }
