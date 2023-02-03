@@ -6,6 +6,7 @@
 #include <errno.h>
 
 #define MAXBUF 1400
+#define FLAG_INDEX 2
 
 #include "pdu.h"
 
@@ -77,7 +78,20 @@ int recvPDU(int clientSocket, uint8_t * dataBuffer, int bufferSize)
     return recved;   
 }
 
-void addChatHeader(uint8_t* dataBuffer, int* messageLen)
+int addPDUFlag(uint8_t* dataBuffer, int flag)
 {
-	
+    int flagLen = 1;
+    memcpy(&(dataBuffer[FLAG_INDEX]), &(flag), flagLen);
+
+    return flagLen;
+}
+
+void parsePDUFlag(uint8_t* dataBuffer, int* flag)
+{
+    memcpy(flag, &(dataBuffer[FLAG_INDEX]), 1);
+}
+
+void printPDUFlag(uint8_t* dataBuffer)
+{
+    printf("flag = %d \n", dataBuffer[FLAG_INDEX]);
 }

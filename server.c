@@ -31,17 +31,19 @@
 #define MAXBUF 1400
 #define DEBUG_FLAG 1
 
-void recvFromClient(int clientSocket);
+// void recvFromClient(int clientSocket);
+void recvFromClient(int clientSocket, uint8_t* dataBuffer);
 int checkArgs(int argc, char *argv[]);
 void serverControl(int mainServerSocket);
 void addNewClient(int serverSocket, int debugFlag);
-void processClient(int clientSocket);
+// void processClient(int clientSocket);
+void processClient(int clientSocket, uint8_t* dataBuffer);
 void replyToClient(int clientSocket, uint8_t* dataBuffer, int sendLen);
 
 int main(int argc, char *argv[])
 {
 	int mainServerSocket = 0;   //socket descriptor for the server socket
-	int clientSocket = 0;   //socket descriptor for the client socket
+	int clientSocket = 0;   	//socket descriptor for the client socket
 	int portNumber = 0;
 	
 	portNumber = checkArgs(argc, argv);
@@ -59,9 +61,9 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-void recvFromClient(int clientSocket)
+void recvFromClient(int clientSocket, uint8_t* dataBuffer)
 {
-	uint8_t dataBuffer[MAXBUF];
+	// uint8_t dataBuffer[MAXBUF];
 	int messageLen = 0;
 	
 	//now get the data from the client_socket
@@ -115,6 +117,8 @@ void serverControl(int mainServerSocket)
     struct handleTable* table = NULL;
     initHandleTables(&table, tableLen);
 
+	uint8_t dataBuffer[MAXBUF];
+
 	while(1)
 	{
 		//poll & block forever
@@ -126,9 +130,11 @@ void serverControl(int mainServerSocket)
 		}
 		else if(readySocket != -1)	//pollCall() == -1 => nothing is ready to read
 		{
-			processClient(readySocket);
+			processClient(readySocket, dataBuffer);
 		}
 	}
+
+	free(table);
 }
 
 void addNewClient(int serverSocket, int debugFlag)
@@ -141,9 +147,9 @@ void addNewClient(int serverSocket, int debugFlag)
 	// printHandleTables(*table, *tableLen);
 }
 
-void processClient(int clientSocket)
+void processClient(int clientSocket, uint8_t* dataBuffer)
 {
-	recvFromClient(clientSocket);
+	recvFromClient(clientSocket, dataBuffer);
 }
 
 void replyToClient(int clientSocket, uint8_t* dataBuffer, int sendLen)
