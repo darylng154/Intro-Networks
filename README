@@ -1,2 +1,9 @@
 Daryl Ng
 Lab Section: 3 pm
+
+Comments:
+IMPORTANT: When trying to send messages larger than 200 characters, you MUST keep restarting
+            the SENDER CLIENT until it works, BUT it works! ):
+
+All the "NumHandlesInTable" in pdu.c does not have to do with the actual HandleTable.
+parseNumHandles is also not part of the HandleTable and takes care of parsing pdu.

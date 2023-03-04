@@ -69,7 +69,6 @@ int main(int argc, char * argv[])
 	
 	checkArgs(argc, argv);
 	handle = argv[ARG_HANDLE_INDEX];
-	// printf("handle: %s \n", handle);
 
 	if(strlen(handle) > MAX_HANDLE_LEN)
 	{
@@ -91,7 +90,7 @@ void sendToServer(int socketNum, uint8_t* sendBuf, int sendLen)
 {
 	int sent = 0;            //actual amount of data sent/* get the data and send it   */
 	
-	printf("read: %s, string len: %d (including null)\n", (char*)sendBuf, sendLen);
+	// printf("read: %s, string len: %d (including null)\n", (char*)sendBuf, sendLen);
 	
 	sent = sendPDU(socketNum, sendBuf, sendLen);
 	if (sent < 0)
@@ -100,7 +99,7 @@ void sendToServer(int socketNum, uint8_t* sendBuf, int sendLen)
 		exit(-1);
 	}
 
-	printf("Amount of data sent is: %d\n\n", sent);
+	// printf("Amount of data sent is: %d\n\n", sent);
 }
 
 int readFromStdin(uint8_t* buffer)
@@ -150,7 +149,6 @@ void clientControl(int serverSocket, char* handle)
 
 	while(1)
 	{
-		printf("%s $: ", handle);
 		fflush(stdout);
 
 		//poll & block forever
@@ -164,9 +162,9 @@ void clientControl(int serverSocket, char* handle)
 		{
 			processMsgFromServer(serverSocket, handle);
 		}
-	}
 
-	printf("cclient exited while loop \n");
+		printf("%s $: ", handle);	// doesn't get called while in STDIN_FILENO since socket isn't ready
+	}
 }
 
 void recvFromServer(int serverSocket, uint8_t* dataBuffer)
@@ -176,9 +174,9 @@ void recvFromServer(int serverSocket, uint8_t* dataBuffer)
 	recved = recvPDU(serverSocket, dataBuffer, MAXBUF);
 	if(recved > 0)
 	{
-		printf("Message received on socket %d, length: %d Data: %s", serverSocket, recved, dataBuffer);
+		// printf("Message received on socket %d, length: %d Data: %s", serverSocket, recved, dataBuffer);
 		// printf("(note the length is %d because of the null)\n", recved);
-		printf("\n\n");
+		// printf("\n\n");
 	}
 	else if(recved < 0)
 	{
@@ -201,13 +199,7 @@ void sendInitPkt(int serverSocket, char* handle)
 
 	pduLen += addAByte(pduBuffer, flag, FLAG_INDEX);
 	pduLen += addHandle(pduBuffer, handle, pduLen);
-	
-	printf("#### sendInitPkt ####\n");
-	printf("check handle arg: %s \n", handle);
-	printf("flag: %d \n", flag);
-	printf("handleLen: %d \n", pduBuffer[1]);
 
-	printBuffer(pduBuffer, pduLen);
 	sendToServer(serverSocket, pduBuffer, pduLen);
 
 	while(readySocket != serverSocket)
@@ -227,6 +219,7 @@ void processStdin(int serverSocket, char* handle)
 	uint8_t pduBuffer[MAXBUF];			// data buffer for PDU (200 Max Text + 900 Max Handles Lenght)
 	int pduLen = 0;
 	int headerLen = 0;
+	int stdinLen = 0;
 
 	int numHandles = 0;
 	// char* destHandles[MAX_DEST_HANDLES];
@@ -238,7 +231,10 @@ void processStdin(int serverSocket, char* handle)
 	int i;
 	int numSends = 0;
 
-	readFromStdin(stdinBuffer);
+	stdinLen = readFromStdin(stdinBuffer);
+	if((int)strlen((char*)stdinBuffer) == 0)
+		return;
+
 	flag = processCommand(stdinBuffer);
 
 	commandLen = parseHandles(tokenBuffer, &flag, stdinBuffer, &numHandles, &destTable, &destTableLen);
@@ -252,14 +248,9 @@ void processStdin(int serverSocket, char* handle)
 
 	headerLen = createHeader(pduBuffer, flag, handle, numHandles, &destTable, &destTableLen);
 	
-	// printf("%s \n", (char*)stdinBuffer);
-
 	// clear the commands and leave only the message
-	memcpy(stdinBuffer, &stdinBuffer[commandLen], MAXBUF);
-
-	printf("#### AFTER MEMCPY STDIN BUFFER ####\n");
-	printf("headerLen: %d \n", headerLen);
-	printf("%s \n", (char*)stdinBuffer);
+	memcpy(stdinBuffer, &stdinBuffer[commandLen], stdinLen-commandLen + 1);
+	// stdinBuffer[stdinLen-commandLen] = '\0';
 
 	numSends = getNumSends(stdinBuffer);
 	if(flag == 1 || flag == 10 || flag == 8)
@@ -280,17 +271,11 @@ void processStdin(int serverSocket, char* handle)
 void processMsgFromServer(int serverSocket, char* handle)
 {
 	uint8_t dataBuffer[MAXBUF] = {'\0'};
-	uint8_t flag = 0;
 	char srcHandle[MAX_HANDLE_LEN] = {'\0'};
 
 	recvFromServer(serverSocket, dataBuffer);
 
-	printBuffer(dataBuffer, MAXBUF);
-
-	flag = processResponse(serverSocket, dataBuffer, handle, srcHandle);
-
-	printf("#### processMsgFromServer ####\n");
-	printf("flag: %d \n", flag);
+	processResponse(serverSocket, dataBuffer, handle, srcHandle);
 }
 
 uint8_t processCommand(uint8_t* dataBuffer)
@@ -331,17 +316,12 @@ uint8_t processCommand(uint8_t* dataBuffer)
 		perror("Invalid Command.");
 	}
 
-	printf("command: %c, flag: %d \n", command[1], flag);
-
 	return flag;
 }
 
 int createHeader(uint8_t* pduBuffer, uint8_t flag, char* srcHandle, int numHandles, struct handleTable** destTable, int* destTableLen)
 {
-	// uint8_t pduBuffer[MAXBUF];	// data buffer for PDU 
 	int pduLen = 0;
-
-	printf("#### createHeader ####\n");
 
 	switch(flag)
 	{
@@ -350,20 +330,10 @@ int createHeader(uint8_t* pduBuffer, uint8_t flag, char* srcHandle, int numHandl
 			pduLen += addHandle(pduBuffer, srcHandle, pduLen);
 			break;
 
-		// case 5:	
-		// 	pduLen += addAByte(pduBuffer, flag, FLAG_INDEX);
-		// 	pduLen += addHandle(pduBuffer, srcHandle, pduLen);		// src
-		// 	pduLen += addAByte(pduBuffer, numHandles, pduLen);
-		// 	pduLen += addHandle(pduBuffer, getHandleByIndex(*destTable, *destTableLen, 0), pduLen);	// dest
-		// 	// printf("destHandle[0]: %s \n", destHandles[0]);
-		// 	break;
-
 		case 5: case 6:
 			pduLen += addAByte(pduBuffer, flag, FLAG_INDEX);
 			pduLen += addHandle(pduBuffer, srcHandle, pduLen);		// src
 			pduLen += addAByte(pduBuffer, numHandles, pduLen);
-			printf("pduLen before addNumHandles: %d \n ", pduLen);
-
 			pduLen = addNumHandles(pduBuffer, *destTable, *destTableLen, pduLen);
 			break;
 
@@ -376,14 +346,10 @@ int createHeader(uint8_t* pduBuffer, uint8_t flag, char* srcHandle, int numHandl
 			break;
 
 		default:
-			perror("#ERROR: createAndSendCommand defaulted");
+			// perror("#ERROR: createAndSendCommand defaulted");
 			// exit(-1);
 			break;
 	}
-
-	printf("headerLen: %i \n", pduLen);
-	// Note: dataBuffer doesn't includes pduLen (2 Bytes) in chat header
-	// printBuffer(pduBuffer, pduLen);
 
 	return pduLen;
 }
@@ -395,10 +361,6 @@ uint8_t processResponse(int serverSocket, uint8_t* dataBuffer, char* handle, cha
 	int curHeaderLen = 0;
 
 	flag = parseAByte(dataBuffer, FLAG_INDEX);
-	// clearPDUBuffer(msgBuffer);
-
-	printf("#### processFlag ####\n");
-	printf("flag: %d \n", flag);
 
 	switch(flag)
 	{
@@ -442,7 +404,7 @@ uint8_t processResponse(int serverSocket, uint8_t* dataBuffer, char* handle, cha
 			break;
 
 		default:
-			perror("#ERROR: processFlag defaulted");
+			// perror("#ERROR: processFlag defaulted");
 			// exit(-1);
 			break;
 	}
@@ -477,12 +439,8 @@ int parseHandles(uint8_t* tokenBuffer, uint8_t* flag, uint8_t* dataBuffer, int* 
 		commandLen += (strlen(token) + 1);	// +1 = space char
 		token = strtok(NULL, " ");			// skip command
 
-		// printf("numHandles: %d \n", *numHandles);
-
 		for(i = 0; i < *numHandles; i++)
 		{
-			printf("%s \n", token);
-
 			if(strlen(token) > MAX_HANDLE_LEN)
 			{
 				perror("Handle is more than 100 characters. \n");
@@ -494,11 +452,7 @@ int parseHandles(uint8_t* tokenBuffer, uint8_t* flag, uint8_t* dataBuffer, int* 
 
 			token = strtok(NULL, " ");
 		}
-
-		printHandleTables(*destTable, *destTableLen);
 	}
-
-	printf("commandLen: %d \n", commandLen);
 
 	return commandLen;
 }
@@ -511,8 +465,6 @@ int createRequest(uint8_t flag, uint8_t* pduBuffer, uint8_t* msgBuffer, int head
 	{
 		case 4: case 5:	case 6: case 10:
 			pduLen += addMessage(pduBuffer, msgBuffer, headerLen);
-
-			printBuffer(pduBuffer, pduLen + headerLen);
 			break;
 
 		case 8:
@@ -524,8 +476,6 @@ int createRequest(uint8_t flag, uint8_t* pduBuffer, uint8_t* msgBuffer, int head
 			break;
 	}
 
-	printf("#### createRequest ####\n");
-	printf("pduLen: %d \n", pduLen);
 	return pduLen;
 }
 
@@ -550,19 +500,9 @@ void processBroadcastMsg(uint8_t* dataBuffer)
 	uint8_t msgBuffer[MAX_MSG] = {'\0'};
 
 	srcHandleLen = parseHandle(dataBuffer, srcHandle, 1);
-	printf("curHeaderLen: %d \n", curHeaderLen);
 	curHeaderLen += srcHandleLen;
-	printf("curHeaderLen: %d \n", curHeaderLen);
 
 	memcpy(msgBuffer, &dataBuffer[curHeaderLen], MAX_MSG);
-
-	printf("#### processBroadcastMsg ####\n");
-	printBuffer(dataBuffer, MAX_MSG);
-	printf("srcHandleLen: %d , srcHandle: %s \n", srcHandleLen, srcHandle);
-	printf("curHeaderLen: %d \n", curHeaderLen);
-	printf("strlen of msg: %d \n", (int)strlen((char*)&dataBuffer[curHeaderLen]));
-	printBuffer(msgBuffer, MAX_MSG);
-
 	printf("%s: %s \n", srcHandle, msgBuffer);
 }
 
@@ -588,29 +528,17 @@ void processMsg(uint8_t* dataBuffer)
 	int i;
 
 	srcHandleLen = parseHandle(dataBuffer, srcHandle, 1);
-	printf("curHeaderLen: %d \n", curHeaderLen);
 	curHeaderLen += srcHandleLen;
-	printf("curHeaderLen: %d \n", curHeaderLen);
 
 	numHandles = parseAByte(dataBuffer, curHeaderLen);
 	curHeaderLen++;
-	printf("curHeaderLen: %d \n", curHeaderLen);
 
 	for(i = 0; i < numHandles; i++)
 	{
 		curHeaderLen += parseHandle(dataBuffer, destBuffer, curHeaderLen);
 	}
-	printf("curHeaderLen: %d \n", curHeaderLen);
 
 	memcpy(msgBuffer, &dataBuffer[curHeaderLen], MAX_MSG+1);
-
-	printf("#### processMsg ####\n");
-	printBuffer(dataBuffer, MAX_MSG+1);
-	printf("srcHandleLen: %d , srcHandle: %s \n", srcHandleLen, srcHandle);
-	printf("curHeaderLen: %d \n", curHeaderLen);
-	printf("strlen of msg: %d \n", (int)strlen((char*)&dataBuffer[curHeaderLen]));
-	printBuffer(msgBuffer, MAX_MSG+1);
-
 	printf("%s: %s \n", srcHandle, msgBuffer);
 }
 
@@ -619,16 +547,12 @@ int addNumHandles(uint8_t* dataBuffer, struct handleTable* table, int tableLen, 
     int i;
 	int pduLen = curHeaderLen;
 
-	printf("#### addNumHandles ####\n");
-	printHandleTables(table, tableLen);
     for(i = 0; i < tableLen; i++)
     {
         if(!isEmpty(table[i]))
         {
 			pduLen += addHandle(dataBuffer, getHandleByIndex(table, tableLen, i), pduLen);	// dest
-			printf("pduLen: %d, in index: %d \n", pduLen, i);
         }
-		printf("pduLen: %d, out index: %d \n", pduLen, i);
     }
 
     return pduLen;
