@@ -151,7 +151,10 @@ int getSocketByIndex(struct handleTable* table, int tableLen, int index)
 	initHandleTable(&client);
 
 	client = table[index];
+	printHandleTable(client);
 	socketNum = client.socketNum;
+
+	printf("table socket: %d \n", socketNum);
 
 	return socketNum;
 }
@@ -163,7 +166,10 @@ char* getHandleByIndex(struct handleTable* table, int tableLen, int index)
 	initHandleTable(&client);
 
 	client = table[index];
+	printHandleTable(client);
 	handle = client.handle;
+
+	printf("table handleLen: %d, handle: %s \n", (int)strlen(handle), handle);
 
 	return handle;
 }

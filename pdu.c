@@ -34,7 +34,7 @@ int sendPDU(int socketNumber, uint8_t * dataBuffer, int lengthOfData)
 
 int recvPDU(int clientSocket, uint8_t * dataBuffer, int bufferSize)
 {
-    // printf("\n");
+    printf("\n");
     uint16_t pduLen = 0;
     clearPDUBuffer(dataBuffer, bufferSize);
 
@@ -54,7 +54,7 @@ int recvPDU(int clientSocket, uint8_t * dataBuffer, int bufferSize)
 	}
     else if(recved == 0)
     {
-        // printf("\nConnection Closed.\n");
+        printf("\nConnection Closed.\n");
         return recved;
     }
 
@@ -74,11 +74,9 @@ int recvPDU(int clientSocket, uint8_t * dataBuffer, int bufferSize)
 	}
     else if(recved == 0)
     {
-        // printf("\nConnection Closed.\n");
-        // return recved;
+        printf("\nConnection Closed.\n");
+        return recved;
     }
-
-    printf("socket: %d, pduLen: %d \n", clientSocket, recved);
 
     return recved;   
 }
@@ -121,6 +119,8 @@ void clearPDUBuffer(uint8_t* dataBuffer, int length)
 int addAByte(uint8_t* dataBuffer, uint8_t byte, int curHeaderLen)
 {
     memcpy(&(dataBuffer[(curHeaderLen)]), &(byte), 1);
+    printf("in addAByte ");
+    printAByte(dataBuffer, curHeaderLen);
 
     return 1;
 }
@@ -153,9 +153,13 @@ int parseHandle(uint8_t* dataBuffer, char* handle, int curHeaderLen)
     int handleLen = 0;
 
     memcpy(&handleLen, &(dataBuffer[curHeaderLen]), 1);
+
+    printf("parseHandle handleLen: %d ", handleLen);
 			
     memcpy(handle, &(dataBuffer[curHeaderLen + 1]), handleLen);
     handle[handleLen] = '\0';
+
+    printf(", handle: %s \n", handle);
 
     return handleLen + 1;
 }
@@ -168,6 +172,8 @@ int addMessage(uint8_t* dataBuffer, uint8_t* msgBuffer, int headerLen)
     dataBuffer[headerLen + msgLen] = '\0';
     msgLen++;   // include Null
 
+    printf("addMessage msgLen: %d, msg: %s  \n", msgLen, msgBuffer);
+
     return msgLen;
 }
 
@@ -177,6 +183,11 @@ int addNumHandlesInTable(uint8_t* dataBuffer, uint32_t numHandles, int curHeader
     num = htonl(numHandles);
     memcpy(&(dataBuffer[curHeaderLen]), &num, sizeof(num));
 
+    printf("#### in addNumHandlesInTable #####\n");
+    printf("numHandles: %d (%02x) \n", numHandles, num);
+
+    printNumHandlesInTable(dataBuffer, curHeaderLen);
+
     return sizeof(numHandles);
 }
 
@@ -185,6 +196,8 @@ void printNumHandlesInTable(uint8_t* dataBuffer, int curHeaderLen)
     uint32_t num = 0;
     memcpy(&num, &(dataBuffer[curHeaderLen]), sizeof(num));
     num = ntohl(num);
+
+    printf("NumHandlesInTable: %d \n", num);
 }
 
 uint32_t parseNumHandlesInTable(uint8_t* dataBuffer, int curHeaderLen)
@@ -201,6 +214,10 @@ int getNumSends(uint8_t* dataBuffer)
 	int numSends = (int)strlen((char*)dataBuffer) / MAX_MSG;
     numSends++;
 
+	printf("##### numSends #####\n");
+	printf("bufferLen: %d, ", (int)strlen((char*)dataBuffer));
+	printf("numSends: %d \n", numSends);
+
     return numSends;
 }
 
@@ -211,15 +228,16 @@ void next200Msg(uint8_t* msgBuffer, uint8_t* stdinBuffer)
 
     if((int)strlen((char*)msgBuffer) < MAX_MSG)
     {
+        // stdinBuffer[(int)strlen((char*)stdinBuffer)] = '\0';
+        // stdinBuffer[MAX_MSG] = '\0';
         msgBuffer[(int)strlen((char*)msgBuffer)] = '\0';
     }
 
     memcpy(stdinBuffer, &stdinBuffer[MAX_MSG], MAXBUF); // clear the read 200 chars
 
-    fflush(stdin);
-    // printf("#### AFTER next200Msg ####\n");
-    // printf("msg: len: %d \n%s \n", (int)strlen((char*)msgBuffer), (char*)msgBuffer);
-	// printf("stdin: len: %d \n%s \n", (int)strlen((char*)stdinBuffer), (char*)stdinBuffer);
+    printf("#### AFTER next200Msg ####\n");
+    printf("msg: len: %d \n%s \n", (int)strlen((char*)msgBuffer), (char*)msgBuffer);
+	printf("stdin: len: %d \n%s \n", (int)strlen((char*)stdinBuffer), (char*)stdinBuffer);
 }
 
 void printBufferWith0(uint8_t buffer[], int length)
@@ -239,7 +257,10 @@ void printBufferWith0(uint8_t buffer[], int length)
             printf("\n");
         }
 
-        printf("[%02d] 0x%0X ('%c')\t", i, buffer[i], (char)buffer[i]);
+        if((char)buffer[i] == '\n')
+            printf("[%02d] 0x%0X ('\\n')\t", i, (char)buffer[i]);
+        else
+            printf("[%02d] 0x%0X ('%c')\t", i, buffer[i], (char)buffer[i]);
     }
     printf("\n");
 }
@@ -249,12 +270,15 @@ int parseNumHandles(uint8_t* dataBuffer, struct handleTable** table, int* tableL
 	int i;
 	char destHandle[MAX_HANDLE_LEN] = {'\0'};
 	int socketNum = 0;
+	printf("#### parseNumHandles ####\n");
 
 	for(i = 0; i < numHandles; i++)
 	{
 		curHeaderLen += parseHandle(dataBuffer, destHandle, curHeaderLen);
 		socketNum = getSocketByHandle(*table, *tableLen, destHandle);
 		*destTableLen = addHandleToTable(destTable, *destTableLen, socketNum, destHandle);
+
+		printf("socketNum[%d]: %d, destHandle: %s \n", i, socketNum, destHandle);
 	}
 	
 	return curHeaderLen;
