@@ -7,6 +7,17 @@
 
 #include "handleTable.h"
 
+int testAdd(struct handleTable** table, int* length)
+{
+    int i;
+    for(i = 0; i < 3; i++)
+    {
+        printf("i: %d \t", i);
+        *length = addHandleToTable(table, *length, -1, "test");
+    }
+    return *length; 
+}
+
 // main to test handleTable
 int main()
 {
@@ -15,14 +26,14 @@ int main()
     struct handleTable* table = NULL;
     initHandleTables(&table, length);
 
-    length = addHandle(&table, length, 5, "client1");
-    length = addHandle(&table, length, 10, "client2");
+    length = addHandleToTable(&table, length, 5, "client1");
+    length = addHandleToTable(&table, length, 10, "client2");
     printHandleTables(table, length);
     printf("index %d \n", findHandleIndex(table, length, "client1"));
     printHandleTable(table[findHandleIndex(table, length, "client1")]);
 
     printf("\nExpand Table Tests \n");
-    length = addHandle(&table, length, 6, "client5");
+    length = addHandleToTable(&table, length, 6, "client5");
     printHandleTables(table, length);
     
     printf("\nExpand Table to 100+2 Tests \n");
@@ -31,10 +42,12 @@ int main()
     for(i = 0; i < 100; i++)
     {   
         // printf("index: %d, length: %d ", i, length);
-        length = addHandle(&table, length, 6, "clientTest");
+        length = addHandleToTable(&table, length, 6, "clientTest");
     }
     printf("\n");
     printHandleTables(table, length);
+
+    printf("table socket test: %d \n", table[0].socketNum);
 
     printf("\nSecond Table Tests \n");
     int length2 = 3;
@@ -42,7 +55,7 @@ int main()
     initHandleTables(&table2, length2);
 
     // handleTableCpy(table2, table, length);
-    length2 = addHandle(&table2, length2, 6, "client5");
+    length2 = addHandleToTable(&table2, length2, 6, "client5");
     printHandleTables(table2, length2);
     
     printf("\nSwap Entry Tests \n");
@@ -64,6 +77,10 @@ int main()
     free(table2);
     table2 = table;
     printHandleTables(table2, length);
+
+
+    length = testAdd(&table, &length);
+    printHandleTables(table, length);
 
     free(table);
 

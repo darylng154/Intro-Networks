@@ -48,10 +48,10 @@ void recvFromServer(int serverSocket, uint8_t* dataBuffer);
 void sendInitPkt(int serverSocket, char* handle);
 void processStdin(int serverSocket, char* handle);
 void processMsgFromServer(int serverSocket, char* handle);
-uint8_t processCommand(uint8_t* dataBuffer);
+uint8_t processCommand(char* command, int numArgs);
 uint8_t processResponse(int serverSocket, uint8_t* dataBuffer, char* handle, char* srcHandle);
 int createHeader(uint8_t* pduBuffer, uint8_t flag, char* srcHandle, int numHandles, struct handleTable** destTable, int* destTableLen);
-int parseHandles(uint8_t* tokenBuffer, uint8_t* flag, uint8_t* dataBuffer, int* numHandles, struct handleTable** destTable, int* destTableLen);
+int parseCommand(uint8_t* tokenBuffer, uint8_t* flag, uint8_t* dataBuffer, int* numHandles, struct handleTable** destTable, int* destTableLen);
 int createRequest(uint8_t flag, uint8_t* pduBuffer, uint8_t* msgBuffer, int headerLen);
 void sendRequest(int serverSocket, uint8_t flag, uint8_t* pduBuffer, int pduLen);
 
@@ -238,14 +238,18 @@ void processStdin(int serverSocket, char* handle)
 	int i;
 	int numSends = 0;
 
+	// messageLen = readFromStdin(stdinBuffer);
 	readFromStdin(stdinBuffer);
-	flag = processCommand(stdinBuffer);
+	// flag = processCommand(stdinBuffer);
 
-	commandLen = parseHandles(tokenBuffer, &flag, stdinBuffer, &numHandles, &destTable, &destTableLen);
+	// if(flag == 5 || flag == 6)
+		// commandLen = parseCommand(tokenBuffer, stdinBuffer, &numHandles, destHandles);
+		commandLen = parseCommand(tokenBuffer, &flag, stdinBuffer, &numHandles, &destTable, &destTableLen);		
+	// else
+	// 	commandLen = 3;
 
 	if(commandLen == -1)
 	{
-		printf("Invalid Command. \n");
 		// printf("commandLen: %d \n", commandLen);
 		return;
 	}
@@ -293,13 +297,9 @@ void processMsgFromServer(int serverSocket, char* handle)
 	printf("flag: %d \n", flag);
 }
 
-uint8_t processCommand(uint8_t* dataBuffer)
+uint8_t processCommand(char* command, int numArgs)
 {
 	uint8_t flag = 0;
-	char command[COMMAND_LEN + 1];
-
-	memcpy(command, dataBuffer, COMMAND_LEN);
-	command[COMMAND_LEN+1] = '\0';
 
 	if(isalpha(command[1]) != 0)
 	{
@@ -450,13 +450,33 @@ uint8_t processResponse(int serverSocket, uint8_t* dataBuffer, char* handle, cha
 	return flag;
 }
 
-int parseHandles(uint8_t* tokenBuffer, uint8_t* flag, uint8_t* dataBuffer, int* numHandles, struct handleTable** destTable, int* destTableLen)
+int getNumArgs(uint8_t* tokenBuffer)
+{
+	uint8_t* copyBuffer[MAXBUF];
+	int i;
+	char* token;
+
+	memcpy(copyBuffer, tokenBuffer, MAXBUF);
+	token = strtok((char*)copyBuffer, " ");	// parses each string seperated by space
+	while(token != NULL)
+	{
+		i++;
+		token = strtok(NULL, " ");			// skip command
+	};
+
+	return i;
+}
+
+int parseCommand(uint8_t* tokenBuffer, uint8_t* flag, uint8_t* dataBuffer, int* numHandles, struct handleTable** destTable, int* destTableLen)
 {
 	char command[COMMAND_LEN + 1];
 	int commandLen = 0;
 	char* token = NULL;
 	int i = 0;
+	int numArgs = 0;
 	
+	// numArgs = getNumArgs(tokenBuffer);
+
 	memcpy(tokenBuffer, dataBuffer, MAXBUF);
 	token = strtok((char*)tokenBuffer, " ");	// parses each string seperated by space
 
@@ -467,8 +487,12 @@ int parseHandles(uint8_t* tokenBuffer, uint8_t* flag, uint8_t* dataBuffer, int* 
 	commandLen += (strlen(token) + 1);	// +1 = space char
 	token = strtok(NULL, " ");			// skip command
 
+	*flag = processCommand(command, numArgs);
+	printf("numArgs: %d \n", numArgs);
+
 	if(*flag == 5 || *flag == 6)
 	{
+
 		if(strlen(token) > NUM_HANDLES_LEN)
 			return -1;
 		else
@@ -477,7 +501,7 @@ int parseHandles(uint8_t* tokenBuffer, uint8_t* flag, uint8_t* dataBuffer, int* 
 		commandLen += (strlen(token) + 1);	// +1 = space char
 		token = strtok(NULL, " ");			// skip command
 
-		// printf("numHandles: %d \n", *numHandles);
+		printf("numHandles: %d \n", *numHandles);
 
 		for(i = 0; i < *numHandles; i++)
 		{

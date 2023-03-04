@@ -27,7 +27,7 @@ void initHandleTables(struct handleTable** table, int length)
 int isEmpty(struct handleTable entry)
 {
     int empty = 1;
-    if(entry.socketNum  != 0 && strcmp(entry.handle, "\0"))
+    if(entry.socketNum  != 0 && strcmp(entry.handle, "\0") != 0)
     {
         empty = 0;
     }
@@ -59,7 +59,7 @@ int findSocketNumIndex(struct handleTable* table, int length, int socketNum)
     return -1;
 }
 
-int addHandle(struct handleTable** table, int length, int socketNum, char* handle)
+int addHandleToTable(struct handleTable** table, int length, int socketNum, char* handle)
 {
     int i;
     for(i = 0; i < length; i++)
@@ -144,3 +144,43 @@ void printHandleTables(struct handleTable* table, int length)
     }
 }
 
+int getSocketByIndex(struct handleTable* table, int tableLen, int index)
+{
+	int socketNum = 0;
+	struct handleTable client;
+	initHandleTable(&client);
+
+	client = table[index];
+	printHandleTable(client);
+	socketNum = client.socketNum;
+
+	printf("table socket: %d \n", socketNum);
+
+	return socketNum;
+}
+
+char* getHandleByIndex(struct handleTable* table, int tableLen, int index)
+{
+	char* handle = NULL;
+	struct handleTable client;
+	initHandleTable(&client);
+
+	client = table[index];
+	printHandleTable(client);
+	handle = client.handle;
+
+	printf("table handleLen: %d, handle: %s \n", (int)strlen(handle), handle);
+
+	return handle;
+}
+
+int getSocketByHandle(struct handleTable* table, int tableLen, char* handle)
+{
+    int index = 0;
+
+    index = findHandleIndex(table, tableLen, handle);
+    if(index == -1)
+        return -1;
+    else
+        return getSocketByIndex(table, tableLen, index);
+}
