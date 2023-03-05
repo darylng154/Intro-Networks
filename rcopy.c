@@ -47,6 +47,9 @@ STATE filename(Connection* server, char** argv);
 int createFilenamePkt(uint8_t* dataBuffer, char** argv);
 STATE checkWindow(Window* window);
 STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clientSeqNum);
+void processRRorSREJ(Connection* server, Window* window, uint32_t serverSeqNum, uint8_t flag);
+STATE windowClosed(Connection* server, Window* window);
+
 
 int main (int argc, char *argv[])
 {	
@@ -206,7 +209,7 @@ void processFile(char** argv)
 				break;
 
 			case WINDOW_CLOSED:
-				state = DONE;
+				state = windowClosed(server, window);
 				break;
 
 			case DONE:
@@ -344,7 +347,11 @@ STATE checkWindow(Window* window)
 {
 	STATE returnValue = DONE;
 
-	printWindow(window);
+	if(VERBOSE == 'v')
+	{
+		printf("####################################################################\n");
+		printWindow(window);
+	}
 
 	if(getCurrent(window) == getUpper(window))
 		returnValue = WINDOW_CLOSED;
@@ -357,8 +364,12 @@ STATE checkWindow(Window* window)
 STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clientSeqNum)
 {
 	uint8_t dataBuffer[MAXBUF];
+	uint8_t pduBuffer[MAXBUF];
 	int readLen = 0;
 	int readySocket = 0;
+	// int dataLen = 0;
+	uint32_t serverSeqNum = 0;
+	uint8_t flag = 0;
 	STATE returnValue = DONE;
 
 	readLen = read(*fromFile, dataBuffer, BUFSIZE);
@@ -381,7 +392,7 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 			setCurrent(window, getCurrent(window) + 1);
 
 			// remove later, only set current when RR comes
-			setLower(window, getLower(window) + 1);
+			// setLower(window, getLower(window) + 1);
 			
 			sendPDU(server, dataBuffer, readLen, *clientSeqNum, DATA);
 			(*clientSeqNum)++;
@@ -391,11 +402,62 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 			if(readySocket == server->socketNum)
 			{
 				// process RR & SREJ
+				recvPDU(server, pduBuffer, (BUFSIZE + HEADERSIZE), &serverSeqNum, &flag);
+				processRRorSREJ(server, window, serverSeqNum, flag);
 			}
 			
 			returnValue = SEND_DATA;
 			break;
 	}
+
+	return returnValue;
+}
+
+void processRRorSREJ(Connection* server, Window* window, uint32_t serverSeqNum, uint8_t flag)
+{
+	if(flag == RR)
+	{
+		setLower(window, serverSeqNum);
+	}
+	else if(flag == SREJ)
+	{
+		// send SREJ data
+		if(VERBOSE == 'v')
+			printf("SREJ flag \n");
+	}
+}
+
+STATE windowClosed(Connection* server, Window* window)
+{
+	// might need a while not EOF loop: professor's piazza
+	uint8_t pduBuffer[MAXBUF];
+	uint8_t dataBuffer[MAXBUF];
+	int readySocket = -1;
+	int numRetries = 0;
+	uint32_t serverSeqNum = 0;
+	uint8_t flag = 0;
+	STATE returnValue = DONE;
+
+	while(numRetries <= MAXRETRIES + 1 && readySocket == -1)
+	{
+		readySocket = retryPoll(server, &numRetries, ONE_SEC);
+		
+		if(readySocket == server->socketNum)
+		{
+			recvPDU(server, pduBuffer, (BUFSIZE + HEADERSIZE), &serverSeqNum, &flag);
+			processRRorSREJ(server, window, serverSeqNum, flag);
+		}
+		else if(readySocket == -1)
+		{
+			copyDataAtIndex(dataBuffer, window, (getLower(window) % WINDOWSIZE));
+			sendPDU(server, dataBuffer, BUFSIZE, getLower(window), DATA);
+		}
+
+		if(VERBOSE == 'v')
+			printf("readySocket: %d, numRetries: %d \n", readySocket, numRetries);
+	}
+
+	returnValue = SEND_DATA;
 
 	return returnValue;
 }

@@ -123,6 +123,10 @@ void processServer(int serverSocketNum, Connection* client)
 		}
 
 		recvLen = recvfromErr(serverSocketNum, dataBuffer, MAXBUF, 0, (struct sockaddr*) &(client->remote), (socklen_t*) &(client->length));
+		
+		if(VERBOSE == 'v')
+			printBuffer(dataBuffer, recvLen);
+		
 		if(recvLen > 0)
 		{
 			recvLen -= HEADERSIZE;
@@ -210,8 +214,9 @@ void processClient(Connection* client, uint8_t* dataBuffer)
 		}
 	}
 
-	close(client->socketNum);
-	free(client);
+	// don't free if i dont seperate Connection* client from main
+	// close(client->socketNum);
+	// free(client);
 }
 
 STATE newSocket(Connection* client)
@@ -242,7 +247,8 @@ STATE filename(Connection* client, uint8_t* dataBuffer, int* toFile)
 
 	if((*toFile = open(toFilename, O_CREAT | O_TRUNC | O_WRONLY, 0600)) == -1)
 	{
-		sendPDU(client, emptyBuffer, sizeof(emptyBuffer), 0, 0);
+		// sendPDU(client, emptyBuffer, sizeof(emptyBuffer), 0, 0);
+		sendPDU(client, emptyBuffer, 0, 0, 0);
 		returnValue = DONE;
 	}
 	else
@@ -330,6 +336,9 @@ STATE recvData(Connection* client, int toFile, uint32_t* serverSeqNum)
 		if(recvedSeqNum == *serverSeqNum)
 		{
 			writeLen = writeToFile(toFile, dataBuffer, dataLen);
+
+			sendPDU(client, dataBuffer, 0, *serverSeqNum, RR);
+
 			(*serverSeqNum)++;
 
 			returnValue = RECV_DATA;
@@ -339,6 +348,8 @@ STATE recvData(Connection* client, int toFile, uint32_t* serverSeqNum)
 		}
 		else
 		{
+			// buffer data & send SREJs
+			
 			returnValue = DONE;
 		}
 	}

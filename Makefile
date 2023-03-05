@@ -73,12 +73,18 @@ serverfrom:
 	./server 0 5454 v
 
 clientfrom:
-	./rcopy bigfrom.txt bigto.txt 3 14 0 unix3.csc.calpoly.edu 5454 v
+	./rcopy from.txt to.txt 3 14 0 unix3.csc.calpoly.edu 5454 v
 
 serverbigfrom:
 	./server 0 5454 v
 
 clientbigfrom:
 	./rcopy bigfrom.txt bigto.txt 3 14 0 unix3.csc.calpoly.edu 5454 v
+
+serverempty:
+	./server 0 5454 v
+
+clientempty:
+	./rcopy empty.txt to.txt 3 14 0 unix3.csc.calpoly.edu 5454 v
 
 
