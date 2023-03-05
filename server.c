@@ -20,6 +20,7 @@
 #include "pollLib.h"
 
 #include "pdu.h"
+#include "window.h"
 
 int16_t BUFSIZE = 0;
 uint32_t WINDOWSIZE = 0;
@@ -40,6 +41,8 @@ void processClient(Connection* client, uint8_t* dataBuffer);
 STATE newSocket(Connection* client);
 STATE filename(Connection* client, uint8_t* dataBuffer, int* toFile);
 void parseFilenamePkt(uint8_t* dataBuffer, char* toFilename);
+int writeToFile(int toFile, uint8_t* dataBuffer, int dataLen);
+STATE recvData(Connection* client, int toFile, uint32_t* serverSeqNum);
 
 int main ( int argc, char *argv[]  )
 { 
@@ -118,6 +121,7 @@ void processServer(int serverSocketNum, Connection* client)
 		{
 			printf("recv filename frame \n");
 		}
+
 		recvLen = recvfromErr(serverSocketNum, dataBuffer, MAXBUF, 0, (struct sockaddr*) &(client->remote), (socklen_t*) &(client->length));
 		if(recvLen > 0)
 		{
@@ -193,7 +197,8 @@ void processClient(Connection* client, uint8_t* dataBuffer)
 				break;
 
 			case RECV_DATA:
-				talkToClient(client, &serverSeqNum);
+				state = recvData(client, toFile, &serverSeqNum);
+				// talkToClient(client, &serverSeqNum);
 				break;
 
 			case DONE:
@@ -229,7 +234,7 @@ STATE newSocket(Connection* client)
 
 STATE filename(Connection* client, uint8_t* dataBuffer, int* toFile)
 {
-	uint8_t emptyBuffer[1];
+	uint8_t emptyBuffer[1] = {'\0'};
 	char toFilename[MAXFILENAME + 1] = {'\0'};
 	STATE returnValue = DONE;
 
@@ -268,3 +273,75 @@ void parseFilenamePkt(uint8_t* dataBuffer, char* toFilename)
 		printf("to-Filename: %s | WINDOWSIZE: %d | BUFSIZE: %d \n", toFilename, WINDOWSIZE, BUFSIZE);
 }
 
+int writeToFile(int toFile, uint8_t* dataBuffer, int dataLen)
+{
+    int writeLen = 0;
+
+    if((writeLen = write(toFile, dataBuffer, dataLen)) == -1)
+    {
+        if(VERBOSE == 'v')
+            perror("Error on writing to toFile");
+            
+        exit(-1);
+    }
+
+    return writeLen;
+}
+
+// add Window to buffer out of seq data
+STATE recvData(Connection* client, int toFile, uint32_t* serverSeqNum)
+{
+	uint8_t dataBuffer[MAXBUF] = {'\0'};
+	int readySocket = 0;
+	int dataLen = 0;
+	int writeLen = 0;
+	uint8_t flag = 0;
+	uint32_t recvedSeqNum = 0;
+	STATE returnValue = DONE;
+
+	readySocket = pollCall(TEN_SEC);
+
+	if(readySocket == client->socketNum)
+	{
+        dataLen = recvPDU(client, dataBuffer, (BUFSIZE + HEADERSIZE), &recvedSeqNum, &flag);
+
+		// if(VERBOSE == 'v')
+		// {
+		// 	printf("printing dataBuffer\n");
+		// 	printBuffer(dataBuffer, dataLen);
+		// 	printf("####################################################################\n\n");
+		// }
+	}
+	else if(readySocket == -1)	// nothing is ready to read
+	{
+		if(VERBOSE == 'v')
+			printf("Server 10 sec poll timed out. \n");
+
+		return DONE;
+	}
+
+	if(dataLen == 0)
+	// if(flag == END_OF_FILE)
+	{
+		returnValue = DONE;
+	}
+	else
+	{
+		if(recvedSeqNum == *serverSeqNum)
+		{
+			writeLen = writeToFile(toFile, dataBuffer, dataLen);
+			(*serverSeqNum)++;
+
+			returnValue = RECV_DATA;
+
+			printf("readLen: %d | writeLen: %d \n", dataLen, writeLen);
+			printf("####################################################################\n\n");
+		}
+		else
+		{
+			returnValue = DONE;
+		}
+	}
+
+	return returnValue;
+}

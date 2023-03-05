@@ -9,7 +9,7 @@ CC= gcc
 CFLAGS= -g -Wall
 LIBS = 
 
-OBJS = networks.o gethostbyname.o pollLib.o safeUtil.o pdu.o
+OBJS = networks.o gethostbyname.o pollLib.o safeUtil.o pdu.o window.o
 
 #uncomment next two lines if your using sendtoErr() library
 LIBS += libcpe464.2.21.a -lstdc++ -ldl
@@ -42,6 +42,8 @@ server1:
 client1:
 	./rcopy from.txt to.txt 100 1000 0 unix3.csc.calpoly.edu 6969 v
 
+bigclient1:
+	./rcopy bigfrom.txt bigto.txt 100 1000 0 unix3.csc.calpoly.edu 6969 v
 
 
 server2:
@@ -49,6 +51,9 @@ server2:
 
 client2:
 	./rcopy from.txt to.txt 100 1000 0 unix3.csc.calpoly.edu 8989 v
+
+bigclient2:
+	./rcopy bigfrom.txt bigto.txt 100 1000 0 unix3.csc.calpoly.edu 8989 v
 
 
 server3:
@@ -59,11 +64,21 @@ client3:
 
 
 serverDrop:
-	./server .85 7899 v
+	./server .88 7899 v
 
 clientDrop:
-	./rcopy from.txt to.txt 100 1000 .85 unix3.csc.calpoly.edu 7899 v
+	./rcopy from.txt to.txt 100 1000 .88 unix3.csc.calpoly.edu 7899 v
 
+serverfrom:
+	./server 0 5454 v
 
+clientfrom:
+	./rcopy bigfrom.txt bigto.txt 3 14 0 unix3.csc.calpoly.edu 5454 v
+
+serverbigfrom:
+	./server 0 5454 v
+
+clientbigfrom:
+	./rcopy bigfrom.txt bigto.txt 3 14 0 unix3.csc.calpoly.edu 5454 v
 
 

@@ -24,6 +24,7 @@
 #include "pollLib.h"
 
 #include "pdu.h"
+#include "window.h"
 
 int16_t BUFSIZE = 0;
 uint32_t WINDOWSIZE = 0;
@@ -33,7 +34,7 @@ typedef enum State STATE;
 
 enum State
 {
-	START_STATE, FILENAME, SEND_DATA, DONE
+	START_STATE, FILENAME, SEND_DATA, WINDOW_OPEN, WINDOW_CLOSED, WAIT_ON_EOF, DONE
 };
 
 int checkArgs(int argc, char * argv[]);
@@ -44,6 +45,8 @@ int retryPoll(Connection* server, int* numRetries, int pollTime);
 STATE startState(Connection* server, char** argv,  int* fromFile);
 STATE filename(Connection* server, char** argv);
 int createFilenamePkt(uint8_t* dataBuffer, char** argv);
+STATE checkWindow(Window* window);
+STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clientSeqNum);
 
 int main (int argc, char *argv[])
 {	
@@ -173,7 +176,11 @@ void processFile(char** argv)
 	Connection* server = (Connection*) calloc(1, sizeof(Connection));
 	server->length = sizeof(struct sockaddr_in6);
 
+	Window* window = (Window*) calloc(1, sizeof(Window));
+	initWindow(window, WINDOWSIZE, BUFSIZE);
+
 	uint32_t clientSeqNum = 0;
+	// uint32_t serverSeqNum = 0;
 	int fromFile = -1;
 	STATE state = START_STATE;
 
@@ -190,7 +197,16 @@ void processFile(char** argv)
 				break;
 
 			case SEND_DATA:
-				talkToServer(server, &clientSeqNum);
+				state = checkWindow(window);
+				// talkToServer(server, &clientSeqNum);
+				break;
+
+			case WINDOW_OPEN:
+				state = sendData(server, window, &fromFile, &clientSeqNum);
+				break;
+
+			case WINDOW_CLOSED:
+				state = DONE;
 				break;
 
 			case DONE:
@@ -202,6 +218,7 @@ void processFile(char** argv)
 		}
 	}
 
+	cleanup(window);
 	close(server->socketNum);
 	free(server);
 }
@@ -209,12 +226,11 @@ void processFile(char** argv)
 int retryPoll(Connection* server, int* numRetries, int pollTime)
 {
 	int readySocket = 0;
-	int returnValue = -1;
 
 	if(*numRetries >= MAXRETRIES)
 	{
 		printf("No response from other side for %d seconds: terminating connection\n", *numRetries);
-		returnValue = -1;
+		readySocket = -1;
 	}
 
 	readySocket = pollCall(pollTime);
@@ -222,15 +238,13 @@ int retryPoll(Connection* server, int* numRetries, int pollTime)
 	if(readySocket == server->socketNum)
 	{
         (*numRetries) = 0;
-		returnValue = server->socketNum;
 	}
 	else if(readySocket == -1)	// nothing is ready to read
 	{
 		(*numRetries)++;
-		returnValue = -1;
 	}
 
-	return returnValue;
+	return readySocket;
 }
 
 STATE startState(Connection* server, char** argv,  int* fromFile)
@@ -326,3 +340,62 @@ int createFilenamePkt(uint8_t* dataBuffer, char** argv)
 	return curHeaderLen;
 }
 
+STATE checkWindow(Window* window)
+{
+	STATE returnValue = DONE;
+
+	printWindow(window);
+
+	if(getCurrent(window) == getUpper(window))
+		returnValue = WINDOW_CLOSED;
+	else
+		returnValue = WINDOW_OPEN;
+
+	return returnValue;
+}
+
+STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clientSeqNum)
+{
+	uint8_t dataBuffer[MAXBUF];
+	int readLen = 0;
+	int readySocket = 0;
+	STATE returnValue = DONE;
+
+	readLen = read(*fromFile, dataBuffer, BUFSIZE);
+
+	switch(readLen)
+	{
+		case -1:
+			perror("sendData could not read from file");
+			returnValue = DONE;
+			break;
+		
+		case 0:	// read 0 bytes == EOF
+			returnValue = DONE;
+			// returnValue = WAIT_ON_EOF;
+			break;
+
+		default:
+			addToWindow(window, dataBuffer, BUFSIZE, *clientSeqNum);
+
+			setCurrent(window, getCurrent(window) + 1);
+
+			// remove later, only set current when RR comes
+			setLower(window, getLower(window) + 1);
+			
+			sendPDU(server, dataBuffer, readLen, *clientSeqNum, DATA);
+			(*clientSeqNum)++;
+
+			readySocket = pollCall(0);
+
+			if(readySocket == server->socketNum)
+			{
+				// process RR & SREJ
+			}
+			
+			returnValue = SEND_DATA;
+			break;
+	}
+
+	return returnValue;
+}

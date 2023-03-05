@@ -55,6 +55,7 @@ int recvPDU(Connection* connection, uint8_t* dataBuffer, int bufferSize, uint32_
     printBuffer(pduBuffer, pduLen);
 
     pduLen = parseHeader(pduBuffer, sequenceNum, flag, pduLen);
+    printf("after parse pduLen: %d \n", pduLen);
 
     if(pduLen > 0)
     {
@@ -118,11 +119,11 @@ int createHeader(uint8_t* pduBuffer, uint32_t sequenceNum, uint8_t flag, int dat
 int parseHeader(uint8_t* pduBuffer, uint32_t* sequenceNum, uint8_t* flag, int dataLen)
 {
     int curHeaderLen = 0;
-    int returnValue = 0;
+    int pduLen = 0;
 
     if(in_cksum((unsigned short*)pduBuffer, dataLen) != 0)
     {
-        returnValue = CRC_ERROR;
+        pduLen = CRC_ERROR;
     }
     else
     {
@@ -132,10 +133,10 @@ int parseHeader(uint8_t* pduBuffer, uint32_t* sequenceNum, uint8_t* flag, int da
         curHeaderLen = sizeof(*sequenceNum) + sizeof(uint16_t);
         memcpy(flag, &(pduBuffer[curHeaderLen]), sizeof(*flag));
 
-        returnValue = dataLen - HEADERSIZE;
+        pduLen = dataLen - HEADERSIZE;
     }
 
-    return returnValue;
+    return pduLen;
 }
 
 int addString(uint8_t* dataBuffer, char* handle, int curHeaderLen)

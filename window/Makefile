@@ -15,5 +15,6 @@ clean:
 make run:
 	./test ../from.txt to.txt
 
-make big
+make bigrun:
+	./test ../bigfrom.txt bigto.txt
 

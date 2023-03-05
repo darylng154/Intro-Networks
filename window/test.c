@@ -6,7 +6,7 @@
 #include "window.h"
 
 #define WINDOWSIZE 5
-#define BUFFERSIZE 4
+#define BUFFERSIZE 14
 
 char VERBOSE = 'v';
 
@@ -27,7 +27,7 @@ int writeToFile(int toFile, uint8_t* dataBuffer, int dataLen)
 
 int main (int argc, char *argv[])
 {
-    Window* window = (Window*) calloc(1, sizeof(Window));;
+    Window* window = (Window*) calloc(1, sizeof(Window));
     int fromFile = -1;
     int toFile = -1;
     uint8_t dataBuffer[MAXBUFSIZE];
@@ -57,6 +57,7 @@ int main (int argc, char *argv[])
     {
         addToWindow(window, dataBuffer, BUFFERSIZE, index);
         setCurrent(window, getCurrent(window) + 1);
+
         copyDataAtIndex(writeBuffer, window, index);
         writeLen = writeToFile(toFile, writeBuffer, readLen);
         index++;

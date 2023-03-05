@@ -2,5 +2,5 @@ Daryl Ng
 Lab Section: 3 pm
 
 Comments:
-I interpreted resend 10 times as in 1st send + 10 more retries.
+I interpreted resend 10 times as 1st send + 10 more retries.
 I send a flag = 0 if the server cannot open the file.
