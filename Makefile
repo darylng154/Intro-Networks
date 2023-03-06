@@ -64,10 +64,10 @@ client3:
 
 
 serverDrop:
-	./server .88 7899 v
+	./server .80 7899 v
 
 clientDrop:
-	./rcopy from.txt to.txt 100 1000 .88 unix3.csc.calpoly.edu 7899 v
+	./rcopy from.txt to.txt 100 1000 .80 unix3.csc.calpoly.edu 7899 v
 
 serverfrom:
 	./server 0 5454 v

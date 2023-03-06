@@ -28,6 +28,7 @@ int getUpper(Window* window);
 uint8_t* getIndex(Window* window, int index);
 void copyDataAtIndex(uint8_t* dataBuffer, Window* window, int index);
 void addToWindow(Window* window, uint8_t* dataBuffer, int dataLen, int index);
+void printWindowFields(Window* window);
 void printWindow(Window* window);
 
 

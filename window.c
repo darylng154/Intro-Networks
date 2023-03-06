@@ -68,12 +68,16 @@ void addToWindow(Window* window, uint8_t* dataBuffer, int dataLen, int index)
     memcpy(getIndex(window, index), dataBuffer, dataLen);
 }
 
+void printWindowFields(Window* window)
+{
+    printf("buffersize: %d | windowsize: %d current: %d | lower: %d | upper: %d \n",
+    window->buffersize, window->windowsize, window->current, window->lower, window->upper);
+}
+
 void printWindow(Window* window)
 {
     int i = 0;
-
-    printf("buffersize: %d | windowsize: %d current: %d | lower: %d | upper: %d \n",
-    window->buffersize, window->windowsize, window->current, window->lower, window->upper);
+    printWindowFields(window);
     for(i = 0; i < window->windowsize; i++)
     {
         i = i % window->windowsize;

@@ -14,6 +14,8 @@
 
 #include "pdu.h"
 
+#define PRINT 1
+
 int sendPDU(Connection* connection, uint8_t* dataBuffer, int dataLen, uint32_t sequenceNum, uint8_t flag)
 {
     int16_t pduLen = 0;
@@ -33,9 +35,12 @@ int sendPDU(Connection* connection, uint8_t* dataBuffer, int dataLen, uint32_t s
         exit(-1);
     }
 
-    printf("sendPDU pduLen: %d sent: %d \n", pduLen, sent);
-    printBuffer(pduBuffer, pduLen);
-    printf("\n");
+    if(PRINT == 1)
+    {
+        printf("sendPDU pduLen: %d sent: %d \n", pduLen, sent);
+        printBuffer(pduBuffer, pduLen);
+        printf("\n");
+    }
 
     return sent;
 }
@@ -45,27 +50,37 @@ int recvPDU(Connection* connection, uint8_t* dataBuffer, int bufferSize, uint32_
     int16_t pduLen = 0;
     uint8_t pduBuffer[MAXBUF] = {'\0'};
 
-    if ((pduLen = recvfromErr(connection->socketNum, pduBuffer, bufferSize, 0, (struct sockaddr*) &(connection->remote), &(connection->length))) < 0)
-	{
+    // if ((pduLen = recvfromErr(connection->socketNum, pduBuffer, bufferSize, 0, (struct sockaddr*) &(connection->remote), &(connection->length))) < 0)
+    if ((pduLen = recvfromErr(connection->socketNum, pduBuffer, (bufferSize + HEADERSIZE), 0, (struct sockaddr*) &(connection->remote), &(connection->length))) < 0)
+    {
 		perror("#ERROR: recvPDU recvfromErr == -1");
 		exit(-1);
 	}
 
-    printf("recvPDU pduLen: %d \n", pduLen);
-    printBuffer(pduBuffer, pduLen);
+    if(PRINT == 1)
+    {
+        printf("recvPDU pduLen: %d \n", pduLen);
+        printBuffer(pduBuffer, pduLen);
+    }
 
     pduLen = parseHeader(pduBuffer, sequenceNum, flag, pduLen);
-    printf("after parse pduLen: %d \n", pduLen);
+
+    if(PRINT == 1)
+        printf("after parse pduLen: %d \n", pduLen);
 
     if(pduLen > 0)
     {
         memcpy(dataBuffer, &(pduBuffer[HEADERSIZE]), pduLen);
 
-        printf("parseHeader pduLen: %d \ndatabuffer: \n", pduLen);
-        printBuffer(dataBuffer, pduLen);
+        if(PRINT == 1)
+        {
+            printf("parseHeader pduLen: %d \ndatabuffer: \n", pduLen);
+            printBuffer(dataBuffer, pduLen);
+        }
     }
 
-    printf("sequence#: %d, flag: %d \n\n", *sequenceNum, *flag);
+    if(PRINT == 1)
+        printf("sequence#: %d, flag: %d \n\n", *sequenceNum, *flag);
 
     return pduLen;
 }
@@ -155,12 +170,14 @@ int parseString(uint8_t* dataBuffer, char* handle, int curHeaderLen)
 
     memcpy(&handleLen, &(dataBuffer[curHeaderLen]), 1);
 
-    printf("parseHandle handleLen: %d ", handleLen);
+    if(PRINT == 1)
+        printf("parseHandle handleLen: %d ", handleLen);
 			
     memcpy(handle, &(dataBuffer[curHeaderLen + 1]), handleLen);
     handle[handleLen] = '\0';
 
-    printf(", handle: %s \n", handle);
+    if(PRINT == 1)
+        printf(", handle: %s \n", handle);
 
     return handleLen + 1;
 }

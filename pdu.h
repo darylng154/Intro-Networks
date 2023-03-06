@@ -12,7 +12,7 @@
 
 enum FLAG
 {
-    DATA = 3, RR = 5, SREJ = 6, FNAME = 7, FNAME_ACK = 8,  END_OF_FILE = 9, EOF_ACK = 10,
+    DATA = 3, RR = 5, SREJ = 6, FNAME = 7, FNAME_ACK = 8,  END_OF_FILE = 9, EOF_ACK = 10, EOF_ACK_ACK = 11,
     CRC_ERROR = -1
 };
 
