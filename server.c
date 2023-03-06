@@ -306,8 +306,7 @@ int writeToFile(int toFile, uint8_t* dataBuffer, int dataLen)
     return writeLen;
 }
 
-// add Window to buffer out of seq data
-STATE recvData(Connection* client, int toFile, uint32_t* serverSeqNum)
+STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverSeqNum)
 {
 	uint8_t dataBuffer[MAXBUF] = {'\0'};
 	int readySocket = 0;
