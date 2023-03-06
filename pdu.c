@@ -14,16 +14,28 @@
 
 #include "pdu.h"
 
-#define PRINT 1
+#define PRINT 0
 
 int sendPDU(Connection* connection, uint8_t* dataBuffer, int dataLen, uint32_t sequenceNum, uint8_t flag)
 {
     int16_t pduLen = 0;
     uint8_t pduBuffer[MAXBUF] = {'\0'};
+    uint32_t rrNum = 0;
 
     if(dataLen > 0)
     {
         memcpy(&(pduBuffer[HEADERSIZE]), dataBuffer, dataLen);
+    }
+
+    if(flag == rrNum)
+    {
+        rrNum = htonl(sequenceNum + 1);
+        memcpy(&(pduBuffer[HEADERSIZE]), &rrNum, sizeof(rrNum));
+    }
+    else if(flag == SREJ)
+    {
+        rrNum = htonl(sequenceNum);
+        memcpy(&(pduBuffer[HEADERSIZE]), &rrNum, sizeof(rrNum));
     }
 
     pduLen = createHeader(pduBuffer, sequenceNum, flag, dataLen);

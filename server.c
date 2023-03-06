@@ -25,6 +25,7 @@
 int16_t BUFSIZE = 0;
 uint32_t WINDOWSIZE = 0;
 char VERBOSE = '\0';
+int isBuffered = 0;
 
 typedef enum State STATE;
 
@@ -55,7 +56,9 @@ int main ( int argc, char *argv[]  )
 		
 	Connection* client = (Connection*) calloc(1, sizeof(Connection));
 	serverSocketNum = udpServerSetup(portNumber, client);
-	printf("serverSocketNum: %d \n", serverSocketNum);
+
+	if(VERBOSE == 'v')
+		printf("serverSocketNum: %d \n", serverSocketNum);
 
 	sendErr_init(atof(argv[1]), DROP_ON, FLIP_OFF, DEBUG_ON, RSEED_OFF);	// error rate and all flags enabled
 	// sendErr_init(atof(argv[1]), DROP_OFF, FLIP_OFF, DEBUG_ON, RSEED_OFF);	// error rate w/ only debug flag
@@ -269,6 +272,9 @@ STATE filename(Connection* client, Window* window, uint8_t* dataBuffer, int* toF
 		returnValue = RECV_DATA;
 	}
 
+	if(VERBOSE == 'v')
+		printf("####################################################################\n\n");
+
 	return returnValue;
 }
 
@@ -345,33 +351,44 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 		}
 		else
 		{
-			memcpy(dataBuffer, serverSeqNum, sizeof(*serverSeqNum));
-			sendPDU(client, dataBuffer, sizeof(*serverSeqNum), *serverSeqNum, SREJ);
+			sendPDU(client, dataBuffer, 0, *serverSeqNum, SREJ);
 			returnValue = RECV_DATA;
 		}
 	}
 	else
 	{
+		if(VERBOSE == 'v')
+			printf("recvedSeqNum: %d | serverSeqNum: %d \n", recvedSeqNum, *serverSeqNum);
+
 		if(recvedSeqNum == *serverSeqNum)
 		{
 			writeLen = writeToFile(toFile, dataBuffer, dataLen);
-
-			memcpy(dataBuffer, serverSeqNum, sizeof(*serverSeqNum));
-			sendPDU(client, dataBuffer, sizeof(*serverSeqNum), *serverSeqNum, RR);
+			
+			sendPDU(client, dataBuffer, 0, *serverSeqNum, RR);
 
 			(*serverSeqNum)++;
 
-			returnValue = RECV_DATA;
+			// returnValue = RECV_DATA;
 
-			printf("readLen: %d | writeLen: %d \n", dataLen, writeLen);
-			printf("####################################################################\n\n");
+			if(VERBOSE == 'v')
+			{
+				printf("readLen: %d | writeLen: %d \n", dataLen, writeLen);
+				printf("####################################################################\n\n");
+			}
 		}
 		else
 		{
 			// buffer data & send SREJs
-			
-			returnValue = DONE;
+			if(VERBOSE == 'v')
+					printf("Buffered \n");
+
+			addToWindow(window, dataBuffer, BUFSIZE, recvedSeqNum);
+			isBuffered = 1;
+
+			sendPDU(client, dataBuffer, 0, *serverSeqNum, SREJ);
 		}
+
+		returnValue = RECV_DATA;
 	}
 
 	return returnValue;
@@ -389,7 +406,7 @@ STATE waitOnEOFACK(Connection* client, uint32_t serverSeqNum)
 	while(numRetries <= MAXRETRIES)
 	{
 		sendPDU(client, dataBuffer, 0, serverSeqNum, EOF_ACK);
-		readySocket = pollCall(TEN_SEC);
+		readySocket = pollCall(ONE_SEC);
 
 		if(readySocket == client->socketNum)
 		{
@@ -400,6 +417,8 @@ STATE waitOnEOFACK(Connection* client, uint32_t serverSeqNum)
 		}
 		else if(readySocket == -1)	// nothing is ready to read
 		{
+			numRetries++;
+			
 			if(VERBOSE == 'v')
 				printf("Server 10 sec poll timed out. \n");
 		}

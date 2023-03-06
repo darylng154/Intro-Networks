@@ -136,16 +136,20 @@ void talkToServer(Connection* server, uint32_t* clientSeqNum)
 	{
 		pduLen = readFromStdin((char*)pduBuffer);
 
-		printf("Sending: %s with len: %d\n", pduBuffer, pduLen);
-	
+		if(VERBOSE == 'v')
+			printf("Sending: %s with len: %d\n", pduBuffer, pduLen);
+
 		sendPDU(server, pduBuffer, pduLen, *clientSeqNum, flag);
 		(*clientSeqNum)++;
 		
 		recvPDU(server, pduBuffer, MAXBUF, &serverSeqNum, &flag);
 		
-		// print out bytes received
-		ipString = ipAddressToString(&(server->remote));
-		printf("Server with ip: %s and port %d said it received %s\n", ipString, ntohs((&(server->remote))->sin6_port), pduBuffer);
+		if(VERBOSE == 'v')
+		{
+			// print out bytes received
+			ipString = ipAddressToString(&(server->remote));
+			printf("Server with ip: %s and port %d said it received %s\n", ipString, ntohs((&(server->remote))->sin6_port), pduBuffer);
+		}
 	}
 }
 
@@ -272,7 +276,9 @@ STATE startState(Connection* server, char** argv,  int* fromFile)
 	}
 	else
 	{
-		printf("trying to open file \n");
+		if(VERBOSE == 'v')
+			printf("trying to open file \n");
+
 		if((*fromFile = open(argv[1], O_RDONLY)) == -1)
 		{
 			printf("Error: file %s not found. \n", argv[1]);
@@ -355,7 +361,7 @@ STATE checkWindow(Window* window)
 
 	if(VERBOSE == 'v')
 	{
-		printf("####################################################################\n");
+		printf("####################################################################\n\n");
 		printWindowFields(window);
 	}
 
@@ -454,12 +460,15 @@ STATE windowClosed(Connection* server, Window* window)
 		{
 			copyDataAtIndex(dataBuffer, window, getLower(window));
 			sendPDU(server, dataBuffer, BUFSIZE, getLower(window), DATA);
+
+			if(VERBOSE == 'v')
+				printf("Window Closed: 1 sec poll timed out \n");
 		}
 
 		returnValue = SEND_DATA;
 
 		if(VERBOSE == 'v')
-			printf("readySocket: %d, numRetries: %d \n", readySocket, numRetries);
+			printf("readySocket: %d, numRetries: %d \n\n", readySocket, numRetries);
 	}
 
 	if(readySocket == -2)
