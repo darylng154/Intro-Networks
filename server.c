@@ -25,7 +25,6 @@
 int16_t BUFSIZE = 0;
 uint32_t WINDOWSIZE = 0;
 char VERBOSE = '\0';
-int isBuffered = 0;
 
 typedef enum State STATE;
 
@@ -43,7 +42,7 @@ STATE newSocket(Connection* client);
 STATE filename(Connection* client, Window* window, uint8_t* dataBuffer, int* toFile);
 void parseFilenamePkt(uint8_t* dataBuffer, char* toFilename);
 int writeToFile(int toFile, uint8_t* dataBuffer, int dataLen);
-STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverSeqNum);
+STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverSeqNum, uint32_t* bufferSeqNum);
 STATE waitOnEOFACK(Connection* client, uint32_t serverSeqNum);
 
 
@@ -192,6 +191,7 @@ void processClient(Connection* client, uint8_t* dataBuffer)
 	Window* window = (Window*) calloc(1, sizeof(Window));
 
 	uint32_t serverSeqNum = 0;
+	uint32_t bufferSeqNum = 0;
 	int toFile = -1;
 	STATE state = START_STATE;
 
@@ -208,7 +208,7 @@ void processClient(Connection* client, uint8_t* dataBuffer)
 				break;
 
 			case RECV_DATA:
-				state = recvData(client, window, toFile, &serverSeqNum);
+				state = recvData(client, window, toFile, &serverSeqNum, &bufferSeqNum);
 				// talkToClient(client, &serverSeqNum);
 				break;
 
@@ -225,6 +225,9 @@ void processClient(Connection* client, uint8_t* dataBuffer)
 		}
 	}
 
+	if(VERBOSE == 'v')
+		printf("Cleaning up server \n");
+		
 	close(toFile);
 	cleanup(window);
 
@@ -312,7 +315,7 @@ int writeToFile(int toFile, uint8_t* dataBuffer, int dataLen)
     return writeLen;
 }
 
-STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverSeqNum)
+STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverSeqNum, uint32_t* bufferSeqNum)
 {
 	uint8_t dataBuffer[MAXBUF] = {'\0'};
 	int readySocket = 0;
@@ -358,35 +361,87 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 	else
 	{
 		if(VERBOSE == 'v')
-			printf("recvedSeqNum: %d | serverSeqNum: %d \n", recvedSeqNum, *serverSeqNum);
+			printf("isBuffered: %d | recvedSeqNum: %d | serverSeqNum: %d \n", isBuffered, recvedSeqNum, *serverSeqNum);
 
-		if(recvedSeqNum == *serverSeqNum)
+
+		if(recvedSeqNum < *serverSeqNum)
 		{
+			sendPDU(client, dataBuffer, 0, *serverSeqNum, RR);
+		}
+		else if(recvedSeqNum == *serverSeqNum)
+		{
+			if(VERBOSE == 'v')
+			{
+				printf("Wrote seq %d into file. \n", *serverSeqNum);
+				printBuffer(dataBuffer, BUFSIZE);
+			}
+
+			if(VERBOSE == 'v')
+				printf("dataLen: %d | size of buffer: %d \n", dataLen, sizeof(dataBuffer));
 			writeLen = writeToFile(toFile, dataBuffer, dataLen);
 			
-			sendPDU(client, dataBuffer, 0, *serverSeqNum, RR);
+			if(isBuffered != 1)
+			{
+				sendPDU(client, dataBuffer, 0, *serverSeqNum, RR);
+				(*serverSeqNum)++;
+			}
+			else
+			{
+				if(VERBOSE == 'v')
+					printWindow(window);
 
-			(*serverSeqNum)++;
+				(*serverSeqNum)++;
+
+				int i = 0;
+				for(i = *serverSeqNum; i <= *bufferSeqNum; i++)
+				{
+					copyDataAtIndex(dataBuffer, window, i);
+					writeLen = writeToFile(toFile, dataBuffer, BUFSIZE);
+
+					sendPDU(client, dataBuffer, 0, i, RR);
+
+					if(VERBOSE == 'v')
+					{
+						printf("Wrote from buffer seq: %d in index: %d \n", i, i % WINDOWSIZE);
+						printBuffer(dataBuffer, BUFSIZE);
+					}
+				}
+				*serverSeqNum = *bufferSeqNum;
+				(*serverSeqNum)++;
+
+				isBuffered = 0;
+			}
 
 			// returnValue = RECV_DATA;
 
-			if(VERBOSE == 'v')
-			{
-				printf("readLen: %d | writeLen: %d \n", dataLen, writeLen);
-				printf("####################################################################\n\n");
-			}
+			// if(VERBOSE == 'v')
+			// {
+			// 	printf("readLen: %d | writeLen: %d \n", dataLen, writeLen);
+			// 	printf("####################################################################\n\n");
+			// }
 		}
-		else
+		else if(recvedSeqNum > *serverSeqNum)
 		{
-			// buffer data & send SREJs
-			if(VERBOSE == 'v')
-					printf("Buffered \n");
+			if(recvedSeqNum > *bufferSeqNum)
+				*bufferSeqNum = recvedSeqNum;
 
+			// buffer data & send SREJs
 			addToWindow(window, dataBuffer, BUFSIZE, recvedSeqNum);
+						
 			isBuffered = 1;
 
 			sendPDU(client, dataBuffer, 0, *serverSeqNum, SREJ);
+
+			if(VERBOSE == 'v')
+			{
+				printf("Buffered: %d | bufferSeqNum: %d \n", recvedSeqNum, *bufferSeqNum);
+				// printWindow(window);
+			}
 		}
+		// else
+		// {
+		// 	sendPDU(client, dataBuffer, 0, *serverSeqNum, SREJ);
+		// }
 
 		returnValue = RECV_DATA;
 	}
@@ -418,7 +473,7 @@ STATE waitOnEOFACK(Connection* client, uint32_t serverSeqNum)
 		else if(readySocket == -1)	// nothing is ready to read
 		{
 			numRetries++;
-			
+
 			if(VERBOSE == 'v')
 				printf("Server 10 sec poll timed out. \n");
 		}

@@ -27,15 +27,17 @@ int sendPDU(Connection* connection, uint8_t* dataBuffer, int dataLen, uint32_t s
         memcpy(&(pduBuffer[HEADERSIZE]), dataBuffer, dataLen);
     }
 
-    if(flag == rrNum)
+    if(flag == RR)
     {
         rrNum = htonl(sequenceNum + 1);
         memcpy(&(pduBuffer[HEADERSIZE]), &rrNum, sizeof(rrNum));
+        dataLen = sizeof(rrNum);
     }
     else if(flag == SREJ)
     {
         rrNum = htonl(sequenceNum);
         memcpy(&(pduBuffer[HEADERSIZE]), &rrNum, sizeof(rrNum));
+        dataLen = sizeof(rrNum);
     }
 
     pduLen = createHeader(pduBuffer, sequenceNum, flag, dataLen);

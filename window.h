@@ -5,6 +5,8 @@
 
 #define MAXBUFSIZE 1400
 
+int isBuffered = 0;
+
 typedef struct window Window;
 
 struct window

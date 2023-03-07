@@ -47,8 +47,8 @@ STATE filename(Connection* server, char** argv);
 int createFilenamePkt(uint8_t* dataBuffer, char** argv);
 STATE checkWindow(Window* window);
 STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clientSeqNum);
-void processRRorSREJ(Connection* server, Window* window, uint32_t serverSeqNum, uint8_t flag);
-STATE windowClosed(Connection* server, Window* window);
+void processRRorSREJ(Connection* server, Window* window, uint8_t* dataBuffer, uint32_t* clientSeqNum, uint8_t flag);
+STATE windowClosed(Connection* server, Window* window, uint32_t* clientSeqNum);
 STATE waitOnEOF(Connection* server, Window* window, uint32_t clientSeqNum);
 
 int main (int argc, char *argv[])
@@ -213,7 +213,7 @@ void processFile(char** argv)
 				break;
 
 			case WINDOW_CLOSED:
-				state = windowClosed(server, window);
+				state = windowClosed(server, window, &clientSeqNum);
 				break;
 
 			case WAIT_ON_EOF:
@@ -379,7 +379,6 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 	uint8_t pduBuffer[MAXBUF];
 	int readLen = 0;
 	int readySocket = 0;
-	// int dataLen = 0;
 	uint32_t serverSeqNum = 0;
 	uint8_t flag = 0;
 	STATE returnValue = DONE;
@@ -402,7 +401,6 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 			setCurrent(window, getCurrent(window) + 1);
 			
 			sendPDU(server, dataBuffer, readLen, *clientSeqNum, DATA);
-			(*clientSeqNum)++;
 
 			readySocket = pollCall(0);
 
@@ -410,8 +408,11 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 			{
 				// process RR & SREJ
 				recvPDU(server, pduBuffer, BUFSIZE, &serverSeqNum, &flag);
-				processRRorSREJ(server, window, serverSeqNum, flag);
+				// processRRorSREJ(server, window, serverSeqNum, flag);
+				processRRorSREJ(server, window, pduBuffer, clientSeqNum, flag);
 			}
+
+			(*clientSeqNum)++;
 			
 			returnValue = SEND_DATA;
 			break;
@@ -420,23 +421,38 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 	return returnValue;
 }
 
-void processRRorSREJ(Connection* server, Window* window, uint32_t serverSeqNum, uint8_t flag)
+void processRRorSREJ(Connection* server, Window* window, uint8_t* dataBuffer, uint32_t* clientSeqNum, uint8_t flag)
 {
-	uint8_t dataBuffer[MAXBUF];
+	// uint8_t dataBuffer[MAXBUF];
+
+	uint32_t sequenceNum = 0;
+	memcpy(&sequenceNum, dataBuffer, sizeof(sequenceNum));
+	sequenceNum = ntohl(sequenceNum);
 
 	if(flag == RR)
 	{
-		setLower(window, serverSeqNum);
+		// setLower(window, serverSeqNum);
+		setLower(window, sequenceNum);
 	}
 	else if(flag == SREJ)
 	{
+		// if(sequenceNum == *clientSeqNum)
+		// 	(*clientSeqNum)++;
+
 		// send SREJ data from window
-		copyDataAtIndex(dataBuffer, window, serverSeqNum);
-		sendPDU(server, dataBuffer, BUFSIZE, serverSeqNum, DATA);
+		copyDataAtIndex(dataBuffer, window, sequenceNum);
+		sendPDU(server, dataBuffer, BUFSIZE, sequenceNum, DATA);
+
+		if(VERBOSE == 'v')
+		{
+			printf("recvedSeqNum: %d | clientSeqNum(before++): %d \n SREJ sent \n", sequenceNum, *clientSeqNum);
+			printBuffer(dataBuffer, BUFSIZE);
+			printWindow(window);
+		}
 	}
 }
 
-STATE windowClosed(Connection* server, Window* window)
+STATE windowClosed(Connection* server, Window* window, uint32_t* clientSeqNum)
 {
 	// might need a while not EOF loop: professor's piazza
 	uint8_t pduBuffer[MAXBUF];
@@ -454,7 +470,8 @@ STATE windowClosed(Connection* server, Window* window)
 		if(readySocket == server->socketNum)
 		{
 			recvPDU(server, pduBuffer, BUFSIZE, &serverSeqNum, &flag);
-			processRRorSREJ(server, window, serverSeqNum, flag);
+
+			processRRorSREJ(server, window, pduBuffer, clientSeqNum, flag);
 		}
 		else if(readySocket == -1)
 		{
@@ -507,7 +524,8 @@ STATE waitOnEOF(Connection* server, Window* window, uint32_t clientSeqNum)
 		}
 		else
 		{
-			processRRorSREJ(server, window, serverSeqNum, flag);
+			// processRRorSREJ(server, window, serverSeqNum, flag);
+			processRRorSREJ(server, window, pduBuffer, &clientSeqNum, flag);
 
 			// if(serverSeqNum == clientSeqNum)
 			// 	returnValue = DONE;

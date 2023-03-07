@@ -71,10 +71,10 @@ clientDrop:
 
 
 serverfrom:
-	./server 0 5454 v
+	./server 0.6 5454 v
 
 clientsmallfrom:
-	./rcopy smallfrom.txt smallto.txt 3 14 .5 unix3.csc.calpoly.edu 5454 v
+	./rcopy smallfrom.txt smallto.txt 3 14 0.6 unix3.csc.calpoly.edu 5454 v
 
 clientfrom:
 	./rcopy from.txt to.txt 3 14 0 unix3.csc.calpoly.edu 5454 v
