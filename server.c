@@ -22,6 +22,7 @@
 #include "pdu.h"
 #include "window.h"
 
+// get from window & pass variable to init the window
 int16_t BUFSIZE = 0;
 uint32_t WINDOWSIZE = 0;
 char VERBOSE = '\0';
@@ -59,7 +60,7 @@ int main ( int argc, char *argv[]  )
 	if(VERBOSE == 'v')
 		printf("serverSocketNum: %d \n", serverSocketNum);
 
-	sendErr_init(atof(argv[1]), DROP_ON, FLIP_OFF, DEBUG_ON, RSEED_OFF);	// error rate and all flags enabled
+	sendErr_init(atof(argv[1]), DROP_ON, FLIP_ON, DEBUG_ON, RSEED_OFF);	// error rate and all flags enabled
 	// sendErr_init(atof(argv[1]), DROP_OFF, FLIP_OFF, DEBUG_ON, RSEED_OFF);	// error rate w/ only debug flag
 	
 	processServer(serverSocketNum, client);
@@ -129,13 +130,13 @@ void processServer(int serverSocketNum, Connection* client)
 		recvLen = recvfromErr(serverSocketNum, dataBuffer, MAXBUF, 0, (struct sockaddr*) &(client->remote), (socklen_t*) &(client->length));
 		
 		if(VERBOSE == 'v')
-			printBuffer(dataBuffer, recvLen);
+			// printBuffer(dataBuffer, recvLen);
 		
 		if(recvLen > 0)
 		{
 			recvLen -= HEADERSIZE;
 			memcpy(dataBuffer, &(dataBuffer[HEADERSIZE]), recvLen);
-			printBuffer(dataBuffer, recvLen);
+			// printBuffer(dataBuffer, recvLen);
 		}
 
 		if(recvLen != CRC_ERROR)
@@ -169,7 +170,6 @@ void talkToClient(Connection* client, uint32_t* serverSeqNum)
 	uint8_t flag = 0;
 	uint32_t clientSeqNum;
 	
-	// pduBuffer[0] = '\0';
 	while(1)
 	{
 		dataLen = recvPDU(client, pduBuffer, BUFSIZE, &clientSeqNum, &flag);
@@ -264,7 +264,6 @@ STATE filename(Connection* client, Window* window, uint8_t* dataBuffer, int* toF
 
 	if((*toFile = open(toFilename, O_CREAT | O_TRUNC | O_WRONLY, 0600)) == -1)
 	{
-		// sendPDU(client, emptyBuffer, sizeof(emptyBuffer), 0, 0);
 		sendPDU(client, emptyBuffer, 0, 0, 0);
 		returnValue = DONE;
 	}
@@ -320,9 +319,9 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 	uint8_t dataBuffer[MAXBUF] = {'\0'};
 	int readySocket = 0;
 	int dataLen = 0;
-	int writeLen = 0;
 	uint8_t flag = 0;
 	uint32_t recvedSeqNum = 0;
+	int i = 0;
 	STATE returnValue = DONE;
 
 	readySocket = pollCall(TEN_SEC);
@@ -330,6 +329,13 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 	if(readySocket == client->socketNum)
 	{
         dataLen = recvPDU(client, dataBuffer, BUFSIZE, &recvedSeqNum, &flag);
+
+		if(dataLen == CRC_ERROR)
+		{
+			if(VERBOSE == 'v')
+				printf("#ERROR: Wrong Checksum! \n");
+			return RECV_DATA;
+		}
 
 		// if(VERBOSE == 'v')
 		// {
@@ -346,11 +352,15 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 		return DONE;
 	}
 
-	if(flag == END_OF_FILE)
+	if(flag == FNAME)
+	{
+		return DONE;
+	}
+	else if(flag == END_OF_FILE)
 	{
 		if(recvedSeqNum == *serverSeqNum)
 		{
-			returnValue = WAIT_ON_EOF_ACK;
+			return WAIT_ON_EOF_ACK;
 		}
 		else
 		{
@@ -361,64 +371,55 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 	else
 	{
 		if(VERBOSE == 'v')
-			printf("isBuffered: %d | recvedSeqNum: %d | serverSeqNum: %d \n", isBuffered, recvedSeqNum, *serverSeqNum);
+			printf("isBuffered: %d | recvedSeqNum: %d | serverSeqNum: %d \n", getIsBuffered(window), recvedSeqNum, *serverSeqNum);
 
 
-		if(recvedSeqNum < *serverSeqNum)
-		{
-			sendPDU(client, dataBuffer, 0, *serverSeqNum, RR);
-		}
-		else if(recvedSeqNum == *serverSeqNum)
+		if(recvedSeqNum == *serverSeqNum)
 		{
 			if(VERBOSE == 'v')
 			{
 				printf("Wrote seq %d into file. \n", *serverSeqNum);
-				printBuffer(dataBuffer, BUFSIZE);
+				printBuffer(dataBuffer, dataLen);
 			}
 
-			if(VERBOSE == 'v')
-				printf("dataLen: %d | size of buffer: %d \n", dataLen, sizeof(dataBuffer));
-			writeLen = writeToFile(toFile, dataBuffer, dataLen);
-			
-			if(isBuffered != 1)
-			{
-				sendPDU(client, dataBuffer, 0, *serverSeqNum, RR);
-				(*serverSeqNum)++;
-			}
-			else
+			writeToFile(toFile, dataBuffer, dataLen);
+
+			sendPDU(client, dataBuffer, 0, *serverSeqNum, RR);
+			(*serverSeqNum)++;
+
+			if(getIsBuffered(window) == 1)
 			{
 				if(VERBOSE == 'v')
-					printWindow(window);
+					printWindowFields(window);
 
-				(*serverSeqNum)++;
-
-				int i = 0;
 				for(i = *serverSeqNum; i <= *bufferSeqNum; i++)
 				{
-					copyDataAtIndex(dataBuffer, window, i);
-					writeLen = writeToFile(toFile, dataBuffer, BUFSIZE);
-
-					sendPDU(client, dataBuffer, 0, i, RR);
-
-					if(VERBOSE == 'v')
+					if(getValid(window, i) && getSequenceNum(window, i) == *serverSeqNum)
 					{
-						printf("Wrote from buffer seq: %d in index: %d \n", i, i % WINDOWSIZE);
-						printBuffer(dataBuffer, BUFSIZE);
+						copyDataAtIndex(dataBuffer, window, i);
+						writeToFile(toFile, dataBuffer, dataLen);
+						setValid(window, i, 0);
+						sendPDU(client, dataBuffer, 0, i, RR);
+
+						if(VERBOSE == 'v')
+						{
+							printf("Wrote from buffer seq: %d in index: %d | bufferSeqNum: %d \n", i, i % WINDOWSIZE, *bufferSeqNum);
+							printBuffer(dataBuffer, dataLen);
+						}
+						(*serverSeqNum)++;
+					}
+					else
+					{
+						continue;
 					}
 				}
-				*serverSeqNum = *bufferSeqNum;
-				(*serverSeqNum)++;
 
-				isBuffered = 0;
+				if(*bufferSeqNum == *serverSeqNum)
+				{
+					setLower(window, 0);
+					setIsBuffered(window, 0);
+				}
 			}
-
-			// returnValue = RECV_DATA;
-
-			// if(VERBOSE == 'v')
-			// {
-			// 	printf("readLen: %d | writeLen: %d \n", dataLen, writeLen);
-			// 	printf("####################################################################\n\n");
-			// }
 		}
 		else if(recvedSeqNum > *serverSeqNum)
 		{
@@ -426,9 +427,10 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 				*bufferSeqNum = recvedSeqNum;
 
 			// buffer data & send SREJs
-			addToWindow(window, dataBuffer, BUFSIZE, recvedSeqNum);
-						
-			isBuffered = 1;
+			addToWindow(window, dataBuffer, dataLen, recvedSeqNum);
+			setSequenceNum(window, recvedSeqNum, recvedSeqNum);
+			setValid(window, recvedSeqNum, 1);
+			setIsBuffered(window, 1);
 
 			sendPDU(client, dataBuffer, 0, *serverSeqNum, SREJ);
 
@@ -438,10 +440,10 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 				// printWindow(window);
 			}
 		}
-		// else
-		// {
-		// 	sendPDU(client, dataBuffer, 0, *serverSeqNum, SREJ);
-		// }
+		else if(recvedSeqNum < *serverSeqNum)	// lost *serverSeqNum-1 RR: resend
+		{
+			sendPDU(client, dataBuffer, 0, *serverSeqNum-1, RR);
+		}
 
 		returnValue = RECV_DATA;
 	}

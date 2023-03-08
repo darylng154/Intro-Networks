@@ -54,19 +54,32 @@ int main (int argc, char *argv[])
 
     index = 0;
     while((readLen = read(fromFile, dataBuffer, BUFFERSIZE)) != 0 && getCurrent(window) != getUpper(window))
+    // while((readLen = read(fromFile, dataBuffer, BUFFERSIZE)) != 0 && index <= 2)
     {
         addToWindow(window, dataBuffer, BUFFERSIZE, index);
+        setValid(window, index, 1);
+        setSequenceNum(window, index, index);
         setCurrent(window, getCurrent(window) + 1);
 
-        copyDataAtIndex(writeBuffer, window, index);
-        writeLen = writeToFile(toFile, writeBuffer, readLen);
+        printf("\n####################################################################\n");
+        printBufferFields(window, index);
+
+        if(getValid(window, index))
+        {
+            copyDataAtIndex(writeBuffer, window, index);
+            setValid(window, index, 0);
+            writeLen = writeToFile(toFile, writeBuffer, readLen);
+        }
+
         index++;
 
         setLower(window, getLower(window) + 1);
 
-        printf("\n####################################################################\n");
+        // printf("\n####################################################################\n");
         printf("readLen: %d | writeLen: %d | index: %d \n", readLen, writeLen, index);
-        printWindow(window);
+        printWindowFields(window);
+        printBufferFields(window, index);
+        // printWindow(window);
     }
 
     printf("\n####################################################################\n");

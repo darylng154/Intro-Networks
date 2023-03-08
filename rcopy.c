@@ -26,6 +26,7 @@
 #include "pdu.h"
 #include "window.h"
 
+// get from window & pass variable to init the window
 int16_t BUFSIZE = 0;
 uint32_t WINDOWSIZE = 0;
 char VERBOSE = '\0';
@@ -47,7 +48,7 @@ STATE filename(Connection* server, char** argv);
 int createFilenamePkt(uint8_t* dataBuffer, char** argv);
 STATE checkWindow(Window* window);
 STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clientSeqNum);
-void processRRorSREJ(Connection* server, Window* window, uint8_t* dataBuffer, uint32_t* clientSeqNum, uint8_t flag);
+void processRRorSREJ(Connection* server, Window* window, uint8_t* dataBuffer, uint8_t flag);
 STATE windowClosed(Connection* server, Window* window, uint32_t* clientSeqNum);
 STATE waitOnEOF(Connection* server, Window* window, uint32_t clientSeqNum);
 
@@ -55,7 +56,7 @@ int main (int argc, char *argv[])
 {	
 	checkArgs(argc, argv);
 	
-	sendErr_init(atof(argv[5]), DROP_ON, FLIP_OFF, DEBUG_ON, RSEED_OFF);	// error rate and all flags enabled
+	sendErr_init(atof(argv[5]), DROP_ON, FLIP_ON, DEBUG_ON, RSEED_OFF);	// error rate and all flags enabled
 	// sendErr_init(atof(argv[5]), DROP_OFF, FLIP_OFF, DEBUG_ON, RSEED_OFF);	// error rate w/ only debug flag
 
 	processFile(argv);
@@ -187,7 +188,6 @@ void processFile(char** argv)
 	initWindow(window, WINDOWSIZE, BUFSIZE);
 
 	uint32_t clientSeqNum = 0;
-	// uint32_t serverSeqNum = 0;
 	int fromFile = -1;
 	STATE state = START_STATE;
 
@@ -381,6 +381,7 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 	int readySocket = 0;
 	uint32_t serverSeqNum = 0;
 	uint8_t flag = 0;
+	int dataLen = 0;
 	STATE returnValue = DONE;
 
 	readLen = read(*fromFile, dataBuffer, BUFSIZE);
@@ -397,22 +398,30 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 			break;
 
 		default:
-			addToWindow(window, dataBuffer, BUFSIZE, *clientSeqNum);
+			addToWindow(window, dataBuffer, readLen, *clientSeqNum);
 			setCurrent(window, getCurrent(window) + 1);
 			
 			sendPDU(server, dataBuffer, readLen, *clientSeqNum, DATA);
+			(*clientSeqNum)++;
+
+			if(VERBOSE == 'v')
+				printBuffer(dataBuffer, readLen);
 
 			readySocket = pollCall(0);
 
 			if(readySocket == server->socketNum)
 			{
 				// process RR & SREJ
-				recvPDU(server, pduBuffer, BUFSIZE, &serverSeqNum, &flag);
-				// processRRorSREJ(server, window, serverSeqNum, flag);
-				processRRorSREJ(server, window, pduBuffer, clientSeqNum, flag);
-			}
+				dataLen = recvPDU(server, pduBuffer, BUFSIZE, &serverSeqNum, &flag);
 
-			(*clientSeqNum)++;
+				if(dataLen == CRC_ERROR)
+				{
+					if(VERBOSE == 'v')
+						printf("#ERROR: Wrong Checksum! \n");
+					return SEND_DATA;
+				}
+				processRRorSREJ(server, window, pduBuffer, flag);
+			}
 			
 			returnValue = SEND_DATA;
 			break;
@@ -421,7 +430,7 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 	return returnValue;
 }
 
-void processRRorSREJ(Connection* server, Window* window, uint8_t* dataBuffer, uint32_t* clientSeqNum, uint8_t flag)
+void processRRorSREJ(Connection* server, Window* window, uint8_t* dataBuffer, uint8_t flag)
 {
 	// uint8_t dataBuffer[MAXBUF];
 
@@ -431,23 +440,19 @@ void processRRorSREJ(Connection* server, Window* window, uint8_t* dataBuffer, ui
 
 	if(flag == RR)
 	{
-		// setLower(window, serverSeqNum);
 		setLower(window, sequenceNum);
 	}
-	else if(flag == SREJ)
+	else if(flag == SREJ && sequenceNum >= getLower(window))
 	{
-		// if(sequenceNum == *clientSeqNum)
-		// 	(*clientSeqNum)++;
-
 		// send SREJ data from window
 		copyDataAtIndex(dataBuffer, window, sequenceNum);
 		sendPDU(server, dataBuffer, BUFSIZE, sequenceNum, DATA);
 
 		if(VERBOSE == 'v')
 		{
-			printf("recvedSeqNum: %d | clientSeqNum(before++): %d \n SREJ sent \n", sequenceNum, *clientSeqNum);
-			printBuffer(dataBuffer, BUFSIZE);
-			printWindow(window);
+			printf("recvedSeqNum: %d | \n", sequenceNum);
+			// printBuffer(dataBuffer, BUFSIZE);
+			// printWindow(window);
 		}
 	}
 }
@@ -461,6 +466,7 @@ STATE windowClosed(Connection* server, Window* window, uint32_t* clientSeqNum)
 	int numRetries = 0;
 	uint32_t serverSeqNum = 0;
 	uint8_t flag = 0;
+	int dataLen = 0;
 	STATE returnValue = DONE;
 
 	while(numRetries <= MAXRETRIES + 1 && readySocket == -1)
@@ -469,9 +475,16 @@ STATE windowClosed(Connection* server, Window* window, uint32_t* clientSeqNum)
 		
 		if(readySocket == server->socketNum)
 		{
-			recvPDU(server, pduBuffer, BUFSIZE, &serverSeqNum, &flag);
+			dataLen = recvPDU(server, pduBuffer, BUFSIZE, &serverSeqNum, &flag);
 
-			processRRorSREJ(server, window, pduBuffer, clientSeqNum, flag);
+			if(dataLen == CRC_ERROR)
+			{
+				if(VERBOSE == 'v')
+					printf("#ERROR: Wrong Checksum! \n");
+				return SEND_DATA;
+			}
+
+			processRRorSREJ(server, window, pduBuffer, flag);
 		}
 		else if(readySocket == -1)
 		{
@@ -502,6 +515,7 @@ STATE waitOnEOF(Connection* server, Window* window, uint32_t clientSeqNum)
 	int numRetries = 0;
 	int readySocket = -1;
 	uint8_t flag = 0;
+	int dataLen = 0;
 	STATE returnValue = DONE;
 
 	while(numRetries < MAXRETRIES + 1 && readySocket == -1)
@@ -515,7 +529,14 @@ STATE waitOnEOF(Connection* server, Window* window, uint32_t clientSeqNum)
 
 	if(readySocket == server->socketNum)
 	{
-		recvPDU(server, pduBuffer, BUFSIZE, &serverSeqNum, &flag);
+		dataLen = recvPDU(server, pduBuffer, BUFSIZE, &serverSeqNum, &flag);
+
+		if(dataLen == CRC_ERROR)
+		{
+			if(VERBOSE == 'v')
+				printf("#ERROR: Wrong Checksum! \n");
+			return WAIT_ON_EOF;
+		}
 
 		if(flag == EOF_ACK)
 		{
@@ -524,13 +545,8 @@ STATE waitOnEOF(Connection* server, Window* window, uint32_t clientSeqNum)
 		}
 		else
 		{
-			// processRRorSREJ(server, window, serverSeqNum, flag);
-			processRRorSREJ(server, window, pduBuffer, &clientSeqNum, flag);
-
-			// if(serverSeqNum == clientSeqNum)
-			// 	returnValue = DONE;
-			// else
-				returnValue = WAIT_ON_EOF;
+			processRRorSREJ(server, window, pduBuffer, flag);
+			returnValue = WAIT_ON_EOF;
 		}
 	}
 
