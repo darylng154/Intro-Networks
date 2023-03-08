@@ -111,7 +111,7 @@ void handleZombies(int signal)
 
 void processServer(int serverSocketNum, Connection* client)
 {
-	// pid_t pid = 0;
+	pid_t pid = 0;
 	uint8_t dataBuffer[MAXBUF];
 	uint32_t recvLen = 0;
 
@@ -141,24 +141,24 @@ void processServer(int serverSocketNum, Connection* client)
 
 		if(recvLen != CRC_ERROR)
 		{			
-			processClient(client, dataBuffer);
+			// processClient(client, dataBuffer);
 
-			// if((pid = fork()) < 0)
-			// {
-			// 	perror("#ERROR: fork Failed");
-			// 	exit(-1);
-			// }
+			if((pid = fork()) < 0)
+			{
+				perror("#ERROR: fork Failed");
+				exit(-1);
+			}
 
-			// if(pid == 0)
-			// {
-			// 	// child process = new process for each client
-			// 	if(VERBOSE == 'v')
-			// 		printf("Child fork() - child pid: %d \n", getpid());
+			if(pid == 0)
+			{
+				// child process = new process for each client
+				if(VERBOSE == 'v')
+					printf("Child fork() - child pid: %d \n", getpid());
 
-			// 	// pass recvLen to child to process FILENAME pkt
-			// 	// processClient(client, dataBuffer);
-			// 	exit(0);
-			// }
+				// pass recvLen to child to process FILENAME pkt
+				processClient(client, dataBuffer);
+				exit(0);
+			}
 		}
 	}
 }
@@ -238,16 +238,18 @@ void processClient(Connection* client, uint8_t* dataBuffer)
 
 STATE newSocket(Connection* client)
 {
+	// uint8_t dataBuffer[MAXBUF];
 	STATE returnValue = DONE;
 
-	// create new client socket for forked child
+	// // create new client socket for forked child
 	// client->socketNum = safeGetUdpSocket();
 
-	// send new socket
-	// sendPDU(client, pduBuffer, dataLen, *serverSeqNum, flag);
+	// // send new socket
+	// memcpy(dataBuffer, &(client->socketNum), sizeof(client->socketNum));
+	// sendPDU(client, dataBuffer, sizeof(client->socketNum), 0, 0);
 
-	setupPollSet();
-	addToPollSet(client->socketNum);
+	// setupPollSet();
+	// addToPollSet(client->socketNum);
 
 	returnValue = FILENAME;
 
@@ -270,6 +272,13 @@ STATE filename(Connection* client, Window* window, uint8_t* dataBuffer, int* toF
 	else
 	{
 		initWindow(window, WINDOWSIZE, BUFSIZE);
+
+		// create new client socket for forked child
+		client->socketNum = safeGetUdpSocket();
+
+		setupPollSet();
+		addToPollSet(client->socketNum);
+
 		sendPDU(client, emptyBuffer, sizeof(emptyBuffer), 0, FNAME_ACK);
 		returnValue = RECV_DATA;
 	}

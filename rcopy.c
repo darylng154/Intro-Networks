@@ -286,7 +286,6 @@ STATE startState(Connection* server, char** argv,  int* fromFile)
 		}
 		else
 		{
-			setupPollSet();
 			addToPollSet(server->socketNum);
 
 			returnValue = FILENAME;
