@@ -197,7 +197,7 @@ int setupUdpClientToServer(struct sockaddr_in6 *serverAddress, char * hostName, 
 		
 	
 	inet_ntop(AF_INET6, ipAddress, ipString, sizeof(ipString));
-	printf("Server info - IP: %s Port: %d \n", ipString, serverPort);
+	// printf("Server info - IP: %s Port: %d \n", ipString, serverPort);
 		
 	return socketNum;
 }

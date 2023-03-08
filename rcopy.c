@@ -26,9 +26,6 @@
 #include "pdu.h"
 #include "window.h"
 
-// get from window & pass variable to init the window
-int16_t BUFSIZE = 0;
-uint32_t WINDOWSIZE = 0;
 char VERBOSE = '\0';
 
 typedef enum State STATE;
@@ -106,15 +103,15 @@ int checkArgs(int argc, char * argv[])
 		exit(-1);
 	}
 
-	WINDOWSIZE = atoi(argv[3]);
-	BUFSIZE = atoi(argv[4]);
+	// WINDOWSIZE = atoi(argv[3]);
+	// BUFSIZE = atoi(argv[4]);
 	portNumber = atoi(argv[7]);
 
 	if(argc > 8)
 		VERBOSE = argv[8][0];
 
 	if(VERBOSE == 'v')
-		printf("VERBOSE: %c | from-Filename: %s | to-Filename: %s | WINDOWSIZE: %d | BUFSIZE: %d \n", VERBOSE, argv[1], argv[2], WINDOWSIZE, BUFSIZE);
+		printf("VERBOSE: %c | from-Filename: %s | to-Filename: %s | WINDOWSIZE: %d | BUFSIZE: %d \n", VERBOSE, argv[1], argv[2], atoi(argv[3]), atoi(argv[4]));
 		
 	return portNumber;
 }
@@ -162,7 +159,7 @@ int readFromStdin(char * buffer)
 	// Important you don't input more characters than you have space 
 	buffer[0] = '\0';
 	printf("Enter data: ");
-	while (inputLen < (BUFSIZE - 1) && aChar != '\n')
+	while (inputLen < (MAXBUF - 1) && aChar != '\n')
 	{
 		aChar = getchar();
 		if (aChar != '\n')
@@ -185,7 +182,7 @@ void processFile(char** argv)
 	server->length = sizeof(struct sockaddr_in6);
 
 	Window* window = (Window*) calloc(1, sizeof(Window));
-	initWindow(window, WINDOWSIZE, BUFSIZE);
+	initWindow(window, atoi(argv[3]), atoi(argv[4]));
 
 	uint32_t clientSeqNum = 0;
 	int fromFile = -1;
@@ -319,7 +316,7 @@ STATE filename(Connection* server, char** argv)
 
 	if(readySocket == server->socketNum)
 	{
-		pduLen = recvPDU(server, pduBuffer, BUFSIZE, &serverSeqNum, &flag);
+		pduLen = recvPDU(server, pduBuffer, MAXBUF, &serverSeqNum, &flag);
 		
 		if(VERBOSE == 'v')
 			printf("recved Filename Response flag: %d \n", flag);
@@ -338,18 +335,20 @@ STATE filename(Connection* server, char** argv)
 
 int createFilenamePkt(uint8_t* dataBuffer, char** argv)
 {
+	uint32_t windowsize = atoi(argv[3]);
+	int16_t buffersize = atoi(argv[4]);
 	int curHeaderLen = 0;
 
 	// add toFilenameLen & toFilename
 	curHeaderLen += addString(dataBuffer, argv[2], curHeaderLen);
 
 	// add window-size
-	memcpy(&(dataBuffer[curHeaderLen]), &(WINDOWSIZE), sizeof(WINDOWSIZE));
-	curHeaderLen += sizeof(WINDOWSIZE);
+	memcpy(&(dataBuffer[curHeaderLen]), &(windowsize), sizeof(windowsize));
+	curHeaderLen += sizeof(windowsize);
 
 	// add buffer-size
-	memcpy(&(dataBuffer[curHeaderLen]), &(BUFSIZE), sizeof(BUFSIZE));
-	curHeaderLen += sizeof(BUFSIZE);
+	memcpy(&(dataBuffer[curHeaderLen]), &(buffersize), sizeof(buffersize));
+	curHeaderLen += sizeof(buffersize);
 
 	return curHeaderLen;
 }
@@ -383,7 +382,7 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 	int dataLen = 0;
 	STATE returnValue = DONE;
 
-	readLen = read(*fromFile, dataBuffer, BUFSIZE);
+	readLen = read(*fromFile, dataBuffer, getBuffersize(window));
 
 	switch(readLen)
 	{
@@ -411,7 +410,7 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 			if(readySocket == server->socketNum)
 			{
 				// process RR & SREJ
-				dataLen = recvPDU(server, pduBuffer, BUFSIZE, &serverSeqNum, &flag);
+				dataLen = recvPDU(server, pduBuffer, getBuffersize(window), &serverSeqNum, &flag);
 
 				if(dataLen == CRC_ERROR)
 				{
@@ -445,12 +444,12 @@ void processRRorSREJ(Connection* server, Window* window, uint8_t* dataBuffer, ui
 	{
 		// send SREJ data from window
 		copyDataAtIndex(dataBuffer, window, sequenceNum);
-		sendPDU(server, dataBuffer, BUFSIZE, sequenceNum, DATA);
+		sendPDU(server, dataBuffer, getBuffersize(window), sequenceNum, DATA);
 
 		if(VERBOSE == 'v')
 		{
 			printf("recvedSeqNum: %d | \n", sequenceNum);
-			// printBuffer(dataBuffer, BUFSIZE);
+			// printBuffer(dataBuffer, getBuffersize(window));
 			// printWindow(window);
 		}
 	}
@@ -474,7 +473,7 @@ STATE windowClosed(Connection* server, Window* window, uint32_t* clientSeqNum)
 		
 		if(readySocket == server->socketNum)
 		{
-			dataLen = recvPDU(server, pduBuffer, BUFSIZE, &serverSeqNum, &flag);
+			dataLen = recvPDU(server, pduBuffer, getBuffersize(window), &serverSeqNum, &flag);
 
 			if(dataLen == CRC_ERROR)
 			{
@@ -488,7 +487,7 @@ STATE windowClosed(Connection* server, Window* window, uint32_t* clientSeqNum)
 		else if(readySocket == -1)
 		{
 			copyDataAtIndex(dataBuffer, window, getLower(window));
-			sendPDU(server, dataBuffer, BUFSIZE, getLower(window), DATA);
+			sendPDU(server, dataBuffer, getBuffersize(window), getLower(window), DATA);
 
 			if(VERBOSE == 'v')
 				printf("Window Closed: 1 sec poll timed out \n");
@@ -528,7 +527,7 @@ STATE waitOnEOF(Connection* server, Window* window, uint32_t clientSeqNum)
 
 	if(readySocket == server->socketNum)
 	{
-		dataLen = recvPDU(server, pduBuffer, BUFSIZE, &serverSeqNum, &flag);
+		dataLen = recvPDU(server, pduBuffer, getBuffersize(window), &serverSeqNum, &flag);
 
 		if(dataLen == CRC_ERROR)
 		{

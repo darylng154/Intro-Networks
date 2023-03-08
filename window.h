@@ -45,6 +45,7 @@ void setSequenceNum(Window* window, int index, uint32_t sequenceNum);
 uint8_t getSequenceNum(Window* window, int index);
 void setIsBuffered(Window* window, int isBuffered);
 int getIsBuffered(Window* window);
-
+int16_t getBuffersize(Window* window);
+uint32_t getWindowsize(Window* window);
 
 #endif

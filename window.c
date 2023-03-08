@@ -126,3 +126,15 @@ int getIsBuffered(Window* window)
 {
     return window->isBuffered;
 }
+
+int16_t getBuffersize(Window* window)
+{
+    return window->buffersize;
+}
+
+uint32_t getWindowsize(Window* window)
+{
+    return window->windowsize;
+}
+
+    

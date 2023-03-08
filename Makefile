@@ -35,54 +35,22 @@ cleano:
 clean:
 	rm -f myServer myClient rcopy server *.o
 
-
-server1:
-	./server 0 6969 v
-
-client1:
-	./rcopy from.txt to.txt 100 1000 0 unix3.csc.calpoly.edu 6969 v
-
-bigclient1:
-	./rcopy bigfrom.txt bigto.txt 100 1000 0 unix3.csc.calpoly.edu 6969 v
-
-
-server2:
-	./server 0 8989 v
-
-client2:
-	./rcopy from.txt to.txt 100 1000 0 unix3.csc.calpoly.edu 8989 v
-
-bigclient2:
-	./rcopy bigfrom.txt bigto.txt 100 1000 0 unix3.csc.calpoly.edu 8989 v
-
-
-server3:
-	./server 0 9898 v
-
-client3:
-	./rcopy from.txt to.txt 100 1000 0 unix3.csc.calpoly.edu 9898 v
-
-
-serverDrop:
-	./server .80 7899 v
-
-clientDrop:
-	./rcopy from.txt to.txt 100 1000 .80 unix3.csc.calpoly.edu 7899 v
-
-
 serverfrom:
-	./server 0.4 5454 v
+	./server 0.1 5455
 
 clientsmallfrom:
-	./rcopy smallfrom.txt smallto.txt 5 14 0.4 unix3.csc.calpoly.edu 5454 v
+	./rcopy smallfrom.txt smallto.txt 5 14 0.4 unix3.csc.calpoly.edu 5455
 
 clientfrom:
-	./rcopy from.txt to.txt 5 14 0.3 unix3.csc.calpoly.edu 5454 v
+	./rcopy from.txt to.txt 5 14 0.3 unix3.csc.calpoly.edu 5455
 
 clientbigfrom:
-	./rcopy bigfrom.txt bigto.txt 5 14 0.3 unix3.csc.calpoly.edu 5454 v
+	./rcopy bigfrom.txt bigto.txt 5 14 0.1 unix3.csc.calpoly.edu 5455
+
+clientmid:
+	./rcopy bigfrom.txt midto.txt 10 1000 0.1 unix3.csc.calpoly.edu 5455
 
 clientempty:
-	./rcopy empty.txt to.txt 5 14 0 unix3.csc.calpoly.edu 5454 v
+	./rcopy empty.txt to.txt 5 14 0 unix3.csc.calpoly.edu 5455
 
 

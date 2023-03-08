@@ -22,9 +22,6 @@
 #include "pdu.h"
 #include "window.h"
 
-// get from window & pass variable to init the window
-int16_t BUFSIZE = 0;
-uint32_t WINDOWSIZE = 0;
 char VERBOSE = '\0';
 
 typedef enum State STATE;
@@ -41,10 +38,10 @@ void talkToClient(Connection* client, uint32_t* serverSeqNum);
 void processClient(Connection* client, uint8_t* dataBuffer);
 STATE newSocket(Connection* client);
 STATE filename(Connection* client, Window* window, uint8_t* dataBuffer, int* toFile);
-void parseFilenamePkt(uint8_t* dataBuffer, char* toFilename);
+void parseFilenamePkt(uint8_t* dataBuffer, uint32_t* windowsize, int16_t* buffersize, char* toFilename);
 int writeToFile(int toFile, uint8_t* dataBuffer, int dataLen);
 STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverSeqNum, uint32_t* bufferSeqNum);
-STATE waitOnEOFACK(Connection* client, uint32_t serverSeqNum);
+STATE waitOnEOFACK(Connection* client, Window* window, uint32_t serverSeqNum);
 
 
 int main ( int argc, char *argv[]  )
@@ -114,6 +111,8 @@ void processServer(int serverSocketNum, Connection* client)
 	pid_t pid = 0;
 	uint8_t dataBuffer[MAXBUF];
 	uint32_t recvLen = 0;
+	uint32_t sequenceNum = 0;
+	uint8_t flag = 0;
 
 	// signal to handle bad fork
 	signal(SIGCHLD, handleZombies);
@@ -128,20 +127,29 @@ void processServer(int serverSocketNum, Connection* client)
 		}
 
 		recvLen = recvfromErr(serverSocketNum, dataBuffer, MAXBUF, 0, (struct sockaddr*) &(client->remote), (socklen_t*) &(client->length));
-		
-		if(VERBOSE == 'v')
+
+		// if(VERBOSE == 'v')
 			// printBuffer(dataBuffer, recvLen);
 		
 		if(recvLen > 0)
 		{
-			recvLen -= HEADERSIZE;
-			memcpy(dataBuffer, &(dataBuffer[HEADERSIZE]), recvLen);
-			// printBuffer(dataBuffer, recvLen);
+			recvLen = parseHeader(dataBuffer, &sequenceNum, &flag, recvLen);
+
+			if(recvLen > 0)
+			{
+				memcpy(dataBuffer, &(dataBuffer[HEADERSIZE]), recvLen);
+
+				if(VERBOSE == 'v')
+				{
+					printf("parseHeader recvLen: %d \ndatabuffer: \n", recvLen);
+					printBuffer(dataBuffer, recvLen);
+				}
+			}
 		}
 
 		if(recvLen != CRC_ERROR)
 		{			
-			// processClient(client, dataBuffer);
+			// processClient(client, dataBuffer); // w/o fork
 
 			if((pid = fork()) < 0)
 			{
@@ -172,7 +180,7 @@ void talkToClient(Connection* client, uint32_t* serverSeqNum)
 	
 	while(1)
 	{
-		dataLen = recvPDU(client, pduBuffer, BUFSIZE, &clientSeqNum, &flag);
+		dataLen = recvPDU(client, pduBuffer, MAXBUF, &clientSeqNum, &flag);
 
 		if(VERBOSE == 'v')
 		{
@@ -213,7 +221,7 @@ void processClient(Connection* client, uint8_t* dataBuffer)
 				break;
 
 			case WAIT_ON_EOF_ACK:
-				state = waitOnEOFACK(client, serverSeqNum);
+				state = waitOnEOFACK(client, window, serverSeqNum);
 				break;
 
 			case DONE:
@@ -259,10 +267,12 @@ STATE newSocket(Connection* client)
 STATE filename(Connection* client, Window* window, uint8_t* dataBuffer, int* toFile)
 {
 	uint8_t emptyBuffer[1] = {'\0'};
-	char toFilename[MAXFILENAME + 1] = {'\0'};
+	char toFilename[(MAXFILENAME + 1)] = {'\0'};
+	uint32_t windowsize = 0;
+	int16_t buffersize = 0;
 	STATE returnValue = DONE;
-
-	parseFilenamePkt(dataBuffer, toFilename);
+	
+	parseFilenamePkt(dataBuffer, &windowsize, &buffersize, toFilename);
 
 	if((*toFile = open(toFilename, O_CREAT | O_TRUNC | O_WRONLY, 0600)) == -1)
 	{
@@ -271,7 +281,7 @@ STATE filename(Connection* client, Window* window, uint8_t* dataBuffer, int* toF
 	}
 	else
 	{
-		initWindow(window, WINDOWSIZE, BUFSIZE);
+		initWindow(window, windowsize, buffersize);
 
 		// create new client socket for forked child
 		client->socketNum = safeGetUdpSocket();
@@ -289,7 +299,7 @@ STATE filename(Connection* client, Window* window, uint8_t* dataBuffer, int* toF
 	return returnValue;
 }
 
-void parseFilenamePkt(uint8_t* dataBuffer, char* toFilename)
+void parseFilenamePkt(uint8_t* dataBuffer, uint32_t* windowsize, int16_t* buffersize, char* toFilename)
 {
 	int curHeaderLen = 0;
 
@@ -297,15 +307,15 @@ void parseFilenamePkt(uint8_t* dataBuffer, char* toFilename)
 	curHeaderLen += parseString(dataBuffer, toFilename, curHeaderLen);
 
 	// parse window-size
-	memcpy(&(WINDOWSIZE), &(dataBuffer[curHeaderLen]), sizeof(WINDOWSIZE));
-	curHeaderLen += sizeof(WINDOWSIZE);
+	memcpy(windowsize, &(dataBuffer[curHeaderLen]), sizeof(*windowsize));
+	curHeaderLen += sizeof(*windowsize);
 
 	// parse buffer-size
-	memcpy(&(BUFSIZE), &(dataBuffer[curHeaderLen]), sizeof(BUFSIZE));
-	// curHeaderLen += sizeof(BUFSIZE);
+	memcpy(buffersize, &(dataBuffer[curHeaderLen]), sizeof(*buffersize));
+	// curHeaderLen += sizeof(*buffersize);
 
 	if(VERBOSE == 'v')
-		printf("to-Filename: %s | WINDOWSIZE: %d | BUFSIZE: %d \n", toFilename, WINDOWSIZE, BUFSIZE);
+		printf("to-Filename: %s | WINDOWSIZE: %d | BUFSIZE: %d \n", toFilename, *windowsize, *buffersize);
 }
 
 int writeToFile(int toFile, uint8_t* dataBuffer, int dataLen)
@@ -337,7 +347,7 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 
 	if(readySocket == client->socketNum)
 	{
-        dataLen = recvPDU(client, dataBuffer, BUFSIZE, &recvedSeqNum, &flag);
+        dataLen = recvPDU(client, dataBuffer, getBuffersize(window), &recvedSeqNum, &flag);
 
 		if(dataLen == CRC_ERROR)
 		{
@@ -412,7 +422,7 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 
 						if(VERBOSE == 'v')
 						{
-							printf("Wrote from buffer seq: %d in index: %d | bufferSeqNum: %d \n", i, i % WINDOWSIZE, *bufferSeqNum);
+							printf("Wrote from buffer seq: %d in index: %d | bufferSeqNum: %d \n", i, i % getWindowsize(window), *bufferSeqNum);
 							printBuffer(dataBuffer, dataLen);
 						}
 						(*serverSeqNum)++;
@@ -460,7 +470,7 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 	return returnValue;
 }
 
-STATE waitOnEOFACK(Connection* client, uint32_t serverSeqNum)
+STATE waitOnEOFACK(Connection* client, Window* window, uint32_t serverSeqNum)
 {
 	uint8_t dataBuffer[MAXBUF] = {'\0'};
 	uint32_t recvedSeqNum = 0;
@@ -476,7 +486,7 @@ STATE waitOnEOFACK(Connection* client, uint32_t serverSeqNum)
 
 		if(readySocket == client->socketNum)
 		{
-			recvPDU(client, dataBuffer, BUFSIZE, &recvedSeqNum, &flag);
+			recvPDU(client, dataBuffer, getBuffersize(window), &recvedSeqNum, &flag);
 
 			if(flag == EOF_ACK_ACK)
 				return DONE;
