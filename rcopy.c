@@ -402,8 +402,8 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 			sendPDU(server, dataBuffer, readLen, *clientSeqNum, DATA);
 			(*clientSeqNum)++;
 
-			if(VERBOSE == 'v')
-				printBuffer(dataBuffer, readLen);
+			// if(VERBOSE == 'v')
+			// 	printBuffer(dataBuffer, readLen);
 
 			readySocket = pollCall(0);
 
@@ -430,7 +430,7 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 
 void processRRorSREJ(Connection* server, Window* window, uint8_t* dataBuffer, uint8_t flag)
 {
-	// uint8_t dataBuffer[MAXBUF];
+	int dataLen = 0;
 
 	uint32_t sequenceNum = 0;
 	memcpy(&sequenceNum, dataBuffer, sizeof(sequenceNum));
@@ -443,8 +443,8 @@ void processRRorSREJ(Connection* server, Window* window, uint8_t* dataBuffer, ui
 	else if(flag == SREJ && sequenceNum >= getLower(window))
 	{
 		// send SREJ data from window
-		copyDataAtIndex(dataBuffer, window, sequenceNum);
-		sendPDU(server, dataBuffer, getBuffersize(window), sequenceNum, DATA);
+		dataLen = copyDataAtIndex(dataBuffer, window, sequenceNum);
+		sendPDU(server, dataBuffer, dataLen, sequenceNum, DATA);
 
 		if(VERBOSE == 'v')
 		{
@@ -486,8 +486,8 @@ STATE windowClosed(Connection* server, Window* window, uint32_t* clientSeqNum)
 		}
 		else if(readySocket == -1)
 		{
-			copyDataAtIndex(dataBuffer, window, getLower(window));
-			sendPDU(server, dataBuffer, getBuffersize(window), getLower(window), DATA);
+			dataLen = copyDataAtIndex(dataBuffer, window, getLower(window));
+			sendPDU(server, dataBuffer, dataLen, getLower(window), DATA);
 
 			if(VERBOSE == 'v')
 				printf("Window Closed: 1 sec poll timed out \n");

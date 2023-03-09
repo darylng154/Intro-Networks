@@ -23,6 +23,7 @@ void initWindow(Window* window, uint32_t windowsize, int16_t buffersize)
     {
         window->buffers[i].valid = 0;
         window->buffers[i].sequenceNum = 0;
+        window->buffers[i].dataLen = 0;
     }
 }
 
@@ -67,6 +68,7 @@ struct dataBuffer* getIndex(Window* window, int index)
 void addToWindow(Window* window, uint8_t* dataBuffer, int dataLen, int index)
 {
     memcpy(getIndex(window, index)->data, dataBuffer, dataLen);
+    setDataLen(window, index, dataLen);
 }
 
 void printWindowFields(Window* window)
@@ -92,9 +94,12 @@ void printWindow(Window* window)
     }
 }
 
-void copyDataAtIndex(uint8_t* dataBuffer, Window* window, int index)
+int copyDataAtIndex(uint8_t* dataBuffer, Window* window, int index)
 {
-    memcpy(dataBuffer, getIndex(window, index)->data, MAXBUFSIZE);
+    int dataLen = getDataLen(window, index);
+    memcpy(dataBuffer, getIndex(window, index)->data, dataLen);
+
+    return dataLen;
 }
 
 void setValid(Window* window, int index, uint8_t valid)
@@ -115,6 +120,16 @@ void setSequenceNum(Window* window, int index, uint32_t sequenceNum)
 uint8_t getSequenceNum(Window* window, int index)
 {
     return getIndex(window, index)->sequenceNum;
+}
+
+void setDataLen(Window* window, int index, uint32_t dataLen)
+{
+    getIndex(window, index)->dataLen = dataLen;
+}
+
+uint32_t getDataLen(Window* window, int index)
+{
+    return getIndex(window, index)->dataLen;
 }
 
 void setIsBuffered(Window* window, int isBuffered)

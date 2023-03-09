@@ -52,7 +52,7 @@ int sendPDU(Connection* connection, uint8_t* dataBuffer, int dataLen, uint32_t s
     if(PRINT == 1)
     {
         printf("sendPDU pduLen: %d sent: %d \n", pduLen, sent);
-        printBuffer(pduBuffer, pduLen);
+        // printBuffer(pduBuffer, pduLen);
         printf("\n");
     }
 
@@ -74,7 +74,7 @@ int recvPDU(Connection* connection, uint8_t* dataBuffer, int bufferSize, uint32_
     if(PRINT == 1)
     {
         printf("recvPDU pduLen: %d \n", pduLen);
-        printBuffer(pduBuffer, pduLen);
+        // printBuffer(pduBuffer, pduLen);
     }
 
     pduLen = parseHeader(pduBuffer, sequenceNum, flag, pduLen);
@@ -89,7 +89,7 @@ int recvPDU(Connection* connection, uint8_t* dataBuffer, int bufferSize, uint32_
         if(PRINT == 1)
         {
             printf("parseHeader pduLen: %d \ndatabuffer: \n", pduLen);
-            printBuffer(dataBuffer, pduLen);
+            // printBuffer(dataBuffer, pduLen);
         }
     }
 

@@ -36,21 +36,41 @@ clean:
 	rm -f myServer myClient rcopy server *.o
 
 serverfrom:
-	./server 0.1 5455
+	./server 0.3 5455 v
 
 clientsmallfrom:
-	./rcopy smallfrom.txt smallto.txt 5 14 0.4 unix3.csc.calpoly.edu 5455
+#	./rcopy ./testcases/smallfrom.txt ./testcases/smallto.txt 5 14 0.4 unix3.csc.calpoly.edu 5455
+	./rcopy ./testcases/smallfrom.txt ./testcases/smallto.txt 10 20 0.4 unix3.csc.calpoly.edu 5455
 
 clientfrom:
-	./rcopy from.txt to.txt 5 14 0.3 unix3.csc.calpoly.edu 5455
+	./rcopy ./testcases/from.txt ./testcases/to.txt 5 14 0.3 unix3.csc.calpoly.edu 5455 v
+#	./rcopy ./testcases/from.txt ./testcases/to.txt 5 50 0.3 unix3.csc.calpoly.edu 5455
 
 clientbigfrom:
-	./rcopy bigfrom.txt bigto.txt 5 14 0.1 unix3.csc.calpoly.edu 5455
+	./rcopy ./testcases/bigfrom.txt ./testcases/bigto.txt 5 14 0.1 unix3.csc.calpoly.edu 5455 v
+
+servermid:
+	./server 0.2 5455 v
 
 clientmid:
-	./rcopy bigfrom.txt midto.txt 10 1000 0.1 unix3.csc.calpoly.edu 5455
+	./rcopy ./testcases/mid ./testcases/midto 10 1000 0.2 unix3.csc.calpoly.edu 5455 v
+
+serverbig50:
+	./server 0.1 5455 v
+
+clientbig50:
+	./rcopy ./testcases/big ./testcases/big50to 50 1000 0.1 unix3.csc.calpoly.edu 5455 v
+
+serverbig5:
+	./server 0.15 5455
+
+clientbig5:
+	./rcopy ./testcases/big ./testcases/big5to 5 1000 0.15 unix3.csc.calpoly.edu 5455
 
 clientempty:
-	./rcopy empty.txt to.txt 5 14 0 unix3.csc.calpoly.edu 5455
+	./rcopy ./testcases/empty.txt ./testcases/emptyto.txt 5 14 0 unix3.csc.calpoly.edu 5455
+
+clientfile1:
+	./rcopy ./testcases/file1 ./testcases/file1to 10 1000 0 unix3.csc.calpoly.edu 5455
 
 

@@ -11,6 +11,7 @@ struct dataBuffer
 {
     uint8_t valid;
     uint32_t sequenceNum;
+    uint32_t dataLen;
     uint8_t data[MAXBUFSIZE];
 };
 
@@ -38,11 +39,13 @@ void addToWindow(Window* window, uint8_t* dataBuffer, int dataLen, int index);
 void printWindowFields(Window* window);
 void printBufferFields(Window* window, int index);
 void printWindow(Window* window);
-void copyDataAtIndex(uint8_t* dataBuffer, Window* window, int index);
+int copyDataAtIndex(uint8_t* dataBuffer, Window* window, int index);
 void setValid(Window* window, int index, uint8_t valid);
 uint8_t getValid(Window* window, int index);
 void setSequenceNum(Window* window, int index, uint32_t sequenceNum);
 uint8_t getSequenceNum(Window* window, int index);
+void setDataLen(Window* window, int index, uint32_t dataLen);
+uint32_t getDataLen(Window* window, int index);
 void setIsBuffered(Window* window, int isBuffered);
 int getIsBuffered(Window* window);
 int16_t getBuffersize(Window* window);
