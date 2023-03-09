@@ -4,11 +4,3 @@ Lab Section: 3 pm
 Comments:
 I interpreted resend 10 times as 1st send + 10 more retries.
 I send a flag = 0 if the server cannot open the file.
-
-
-
-
-// to do: work on SREJ (Test too) & EOF    => lastly fork
-// warning: windowClosed: might need a while not EOF loop: professor's piazza
-
-// got window open & closed to work

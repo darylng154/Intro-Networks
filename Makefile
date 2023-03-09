@@ -39,27 +39,26 @@ serverfrom:
 	./server 0.3 5455 v
 
 clientsmallfrom:
-#	./rcopy ./testcases/smallfrom.txt ./testcases/smallto.txt 5 14 0.4 unix3.csc.calpoly.edu 5455
-	./rcopy ./testcases/smallfrom.txt ./testcases/smallto.txt 10 20 0.4 unix3.csc.calpoly.edu 5455
+	./rcopy ./testcases/smallfrom.txt ./testcases/smallto.txt 5 10 0.4 unix3.csc.calpoly.edu 5455
 
 clientfrom:
-	./rcopy ./testcases/from.txt ./testcases/to.txt 5 14 0.3 unix3.csc.calpoly.edu 5455 v
+	./rcopy ./testcases/from.txt ./testcases/to.txt 5 50 0.3 unix3.csc.calpoly.edu 5455
 #	./rcopy ./testcases/from.txt ./testcases/to.txt 5 50 0.3 unix3.csc.calpoly.edu 5455
 
 clientbigfrom:
-	./rcopy ./testcases/bigfrom.txt ./testcases/bigto.txt 5 14 0.1 unix3.csc.calpoly.edu 5455 v
+	./rcopy ./testcases/bigfrom.txt ./testcases/bigto.txt 112 1000 0.1 unix3.csc.calpoly.edu 5455
 
 servermid:
-	./server 0.2 5455 v
+	./server 0.4 5455
 
 clientmid:
-	./rcopy ./testcases/mid ./testcases/midto 10 1000 0.2 unix3.csc.calpoly.edu 5455 v
+	./rcopy ./testcases/mid ./testcases/midto 10 1000 0.4 unix3.csc.calpoly.edu 5455
 
 serverbig50:
-	./server 0.1 5455 v
+	./server 0.1 5455
 
 clientbig50:
-	./rcopy ./testcases/big ./testcases/big50to 50 1000 0.1 unix3.csc.calpoly.edu 5455 v
+	./rcopy ./testcases/big ./testcases/big50to 50 1000 0.1 unix3.csc.calpoly.edu 5455
 
 serverbig5:
 	./server 0.15 5455

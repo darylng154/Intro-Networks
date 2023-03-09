@@ -40,7 +40,7 @@ STATE newSocket(Connection* client);
 STATE filename(Connection* client, Window* window, uint8_t* dataBuffer, int* toFile);
 void parseFilenamePkt(uint8_t* dataBuffer, uint32_t* windowsize, int16_t* buffersize, char* toFilename);
 int writeToFile(int toFile, uint8_t* dataBuffer, int dataLen);
-STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverSeqNum, uint32_t* bufferSeqNum);
+STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverSeqNum, uint32_t* bufferSeqNum, int* sentSREJ);
 STATE waitOnEOFACK(Connection* client, Window* window, uint32_t serverSeqNum);
 
 
@@ -201,6 +201,7 @@ void processClient(Connection* client, uint8_t* dataBuffer)
 	uint32_t serverSeqNum = 0;
 	uint32_t bufferSeqNum = 0;
 	int toFile = -1;
+	int sentSREJ = 0;
 	STATE state = START_STATE;
 
 	while(state != DONE)
@@ -216,7 +217,7 @@ void processClient(Connection* client, uint8_t* dataBuffer)
 				break;
 
 			case RECV_DATA:
-				state = recvData(client, window, toFile, &serverSeqNum, &bufferSeqNum);
+				state = recvData(client, window, toFile, &serverSeqNum, &bufferSeqNum, &sentSREJ);
 				// talkToClient(client, &serverSeqNum);
 				break;
 
@@ -333,7 +334,7 @@ int writeToFile(int toFile, uint8_t* dataBuffer, int dataLen)
     return writeLen;
 }
 
-STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverSeqNum, uint32_t* bufferSeqNum)
+STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverSeqNum, uint32_t* bufferSeqNum, int* sentSREJ)
 {
 	uint8_t dataBuffer[MAXBUF] = {'\0'};
 	int readySocket = 0;
@@ -383,14 +384,19 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 		}
 		else
 		{
-			sendPDU(client, dataBuffer, 0, *serverSeqNum, SREJ);
+			// if(*sentSREJ == 0)
+			// {
+				sendPDU(client, dataBuffer, 0, *serverSeqNum, SREJ);
+			// 	*sentSREJ = 1;
+			// }
+			
 			returnValue = RECV_DATA;
 		}
 	}
 	else
 	{
 		if(VERBOSE == 'v')
-			printf("isBuffered: %d | recvedSeqNum: %d | serverSeqNum: %d \n", getIsBuffered(window), recvedSeqNum, *serverSeqNum);
+			printf("isBuffered: %d | recvedSeqNum: %d | serverSeqNum: %d | sentSREJ: %d \n", getIsBuffered(window), recvedSeqNum, *serverSeqNum, *sentSREJ);
 
 
 		if(recvedSeqNum == *serverSeqNum)
@@ -400,6 +406,8 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 				printf("Wrote seq %d into file. \n", *serverSeqNum);
 				// printBuffer(dataBuffer, dataLen);
 			}
+
+			*sentSREJ = 0;
 
 			writeToFile(toFile, dataBuffer, dataLen);
 
@@ -430,7 +438,11 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 					else
 					{
 						// send SREJ when lost sequential data
-						// sendPDU(client, dataBuffer, 0, *serverSeqNum, SREJ);
+						if(*sentSREJ == 0)
+						{
+							sendPDU(client, dataBuffer, 0, *serverSeqNum, SREJ);
+							*sentSREJ = 1;
+						}
 						break;
 					}
 				}
@@ -454,7 +466,11 @@ STATE recvData(Connection* client, Window* window, int toFile, uint32_t* serverS
 			setValid(window, recvedSeqNum, 1);
 			setIsBuffered(window, 1);
 
-			sendPDU(client, dataBuffer, 0, *serverSeqNum, SREJ);
+			if(*sentSREJ == 0)
+			{
+				sendPDU(client, dataBuffer, 0, *serverSeqNum, SREJ);
+				*sentSREJ = 1;
+			}
 
 			if(VERBOSE == 'v')
 			{

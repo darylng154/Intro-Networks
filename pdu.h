@@ -13,7 +13,7 @@
 enum FLAG
 {
     DATA = 3, RR = 5, SREJ = 6, FNAME = 7, FNAME_ACK = 8,  END_OF_FILE = 9, EOF_ACK = 10, EOF_ACK_ACK = 11,
-    CRC_ERROR = -1
+    CRC_ERROR = -1,
 };
 
 int sendPDU(Connection* connection, uint8_t* dataBuffer, int dataLen, uint32_t sequenceNum, uint8_t flag);

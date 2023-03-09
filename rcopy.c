@@ -32,7 +32,7 @@ typedef enum State STATE;
 
 enum State
 {
-	START_STATE, FILENAME, SEND_DATA, WINDOW_OPEN, WINDOW_CLOSED, WAIT_ON_EOF, DONE
+	START_STATE, FILENAME, SEND_DATA, WINDOW_OPEN, WINDOW_CLOSED, WAIT_ON_EOF, DONE, BEFORE_EOF
 };
 
 int checkArgs(int argc, char * argv[]);
@@ -48,6 +48,7 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 void processRRorSREJ(Connection* server, Window* window, uint8_t* dataBuffer, uint8_t flag);
 STATE windowClosed(Connection* server, Window* window, uint32_t* clientSeqNum);
 STATE waitOnEOF(Connection* server, Window* window, uint32_t clientSeqNum);
+STATE beforeEOF(Connection* server, Window* window, int* numRetries);
 
 int main (int argc, char *argv[])
 {	
@@ -186,6 +187,7 @@ void processFile(char** argv)
 
 	uint32_t clientSeqNum = 0;
 	int fromFile = -1;
+	int numRetries = 0;
 	STATE state = START_STATE;
 
 	while(state != DONE)
@@ -211,6 +213,10 @@ void processFile(char** argv)
 
 			case WINDOW_CLOSED:
 				state = windowClosed(server, window, &clientSeqNum);
+				break;
+
+			case BEFORE_EOF:
+				state = beforeEOF(server, window, &numRetries);
 				break;
 
 			case WAIT_ON_EOF:
@@ -392,6 +398,7 @@ STATE sendData(Connection* server, Window* window, int* fromFile, uint32_t* clie
 			break;
 		
 		case 0:	// read 0 bytes == EOF
+			// returnValue = BEFORE_EOF;
 			returnValue = WAIT_ON_EOF;
 			break;
 
@@ -457,7 +464,6 @@ void processRRorSREJ(Connection* server, Window* window, uint8_t* dataBuffer, ui
 
 STATE windowClosed(Connection* server, Window* window, uint32_t* clientSeqNum)
 {
-	// might need a while not EOF loop: professor's piazza
 	uint8_t pduBuffer[MAXBUF];
 	uint8_t dataBuffer[MAXBUF];
 	int readySocket = -1;
@@ -547,6 +553,56 @@ STATE waitOnEOF(Connection* server, Window* window, uint32_t clientSeqNum)
 			returnValue = WAIT_ON_EOF;
 		}
 	}
+
+	if(readySocket == -2)
+		returnValue = DONE;
+
+	return returnValue;
+}
+
+STATE beforeEOF(Connection* server, Window* window, int* numRetries)
+{
+	uint8_t pduBuffer[MAXBUF];
+	uint8_t dataBuffer[MAXBUF];
+	uint32_t serverSeqNum = 0;
+	int readySocket = -1;
+	uint8_t flag = 0;
+	int dataLen = 0;
+	STATE returnValue = DONE;
+
+	readySocket = retryPoll(server, numRetries, ONE_SEC);
+
+	if(readySocket == server->socketNum)
+	{
+		dataLen = recvPDU(server, pduBuffer, getBuffersize(window), &serverSeqNum, &flag);
+
+		if(dataLen == CRC_ERROR)
+		{
+			if(VERBOSE == 'v')
+				printf("#ERROR: Wrong Checksum! \n");
+			return BEFORE_EOF;
+		}
+
+		if(serverSeqNum == getCurrent(window))
+		{
+			return WAIT_ON_EOF;
+		}
+		else
+		{
+			processRRorSREJ(server, window, pduBuffer, flag);
+		}
+
+		returnValue = BEFORE_EOF;
+	}
+	else if(readySocket == -1)
+	{
+		dataLen = copyDataAtIndex(dataBuffer, window, getLower(window));
+		sendPDU(server, dataBuffer, dataLen, getLower(window), DATA);
+
+		if(VERBOSE == 'v')
+			printf("Before EOF: 1 sec poll timed out \n");
+	}
+
 
 	if(readySocket == -2)
 		returnValue = DONE;
